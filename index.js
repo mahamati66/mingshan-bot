@@ -53,7 +53,8 @@ async function generateReply(comment) {
         max_tokens: 300,
         messages: [{
           role: 'user',
-          content: `你是竹山明善寺的小助手，請用溫暖、佛法的語氣，簡短回覆這則臉書留言（100字以內，繁體中文）：\n\n"${comment}"`
+          content: `你是竹山明善寺的小助手，請用溫暖、佛法的語氣，簡短回覆這則臉書私訊（100字以內，繁體中文）。若對方詢問地址或交通，請告知：地址：南投縣竹山鎮竹山路路27號，電話：049-2642840。
+\n\n"${comment}"`
         }]
       })
     });
