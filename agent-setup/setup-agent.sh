@@ -83,6 +83,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cp "$SCRIPT_DIR/CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
 cp "$SCRIPT_DIR/MEMORY.md" "$AGENT_DIR/000_Agent/memory/MEMORY.md"
 
+# 複製 workflows（如果有的話）
+if [ -d "$SCRIPT_DIR/workflows" ]; then
+    cp -R "$SCRIPT_DIR/workflows/"* "$AGENT_DIR/000_Agent/workflows/" 2>/dev/null || true
+    echo "✅ Workflows 已複製"
+fi
+
 # 今天的 daily log
 cat > "$AGENT_DIR/000_Agent/memory/daily/$(date +%Y-%m-%d).md" << EOF
 # $(date +%Y-%m-%d) Session Log
