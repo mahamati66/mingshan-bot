@@ -89,6 +89,12 @@ if [ -d "$SCRIPT_DIR/workflows" ]; then
     echo "✅ Workflows 已複製"
 fi
 
+# 複製 Reference 素材（如果有的話）
+if [ -d "$SCRIPT_DIR/200_Reference" ]; then
+    cp -Rn "$SCRIPT_DIR/200_Reference/"* "$AGENT_DIR/200_Reference/" 2>/dev/null || true
+    echo "✅ Reference 素材已複製"
+fi
+
 # 今天的 daily log
 cat > "$AGENT_DIR/000_Agent/memory/daily/$(date +%Y-%m-%d).md" << EOF
 # $(date +%Y-%m-%d) Session Log
