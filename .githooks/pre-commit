@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# pre-commit: 自動剝離檔頭的 Obsidian frontmatter（created / updated）
+#
+# 設計：
+# - 只動 git index（staged 版本），不改 working tree
+# - Obsidian 在本地繼續自動加 frontmatter 不受影響
+# - 推到 GitHub 的永遠是乾淨的內容
+#
+# 觸發條件：檔頭連續 YAML block（--- ... ---）且 block 內只含 created / updated 兩個 key
+# 其他類型的 frontmatter（例如 skill 的 name / description）完全不動
+
+set -euo pipefail
+
+# 只處理 .md 檔案（新增或修改）
+files=$(git diff --cached --name-only --diff-filter=AM | grep -E '\.md$' || true)
+
+[ -z "$files" ] && exit 0
+
+stripped_any=0
+
+while IFS= read -r f; do
+    # 從 index 讀出 staged 內容
+    staged_content=$(git show ":$f" 2>/dev/null || true)
+    [ -z "$staged_content" ] && continue
+
+    # 第一行必須是 ---
+    first_line=$(printf '%s\n' "$staged_content" | head -n 1)
+    [ "$first_line" != "---" ] && continue
+
+    # 找第二個 --- 的行號
+    end_line=$(printf '%s\n' "$staged_content" | awk 'NR>1 && /^---$/ {print NR; exit}')
+    [ -z "$end_line" ] && continue
+
+    # 取出 frontmatter block 內容（不含邊界 ---）
+    fm_body=$(printf '%s\n' "$staged_content" | sed -n "2,$((end_line - 1))p")
+
+    # 判斷是不是「只有 created / updated」的 Obsidian frontmatter
+    # 如果有其他 key（name、description、tags...）就不剝
+    non_obsidian=$(printf '%s\n' "$fm_body" | grep -E '^[a-zA-Z_-]+:' | grep -vE '^(created|updated):' || true)
+    [ -n "$non_obsidian" ] && continue
+
+    # 剝掉 frontmatter（從 $((end_line + 1)) 行開始）
+    new_content=$(printf '%s\n' "$staged_content" | sed -n "$((end_line + 1)),\$p")
+
+    # 移除開頭的空行（如果有）
+    new_content=$(printf '%s' "$new_content" | awk 'NF {p=1} p')
+
+    # 寫回 git object store 並更新 index
+    new_hash=$(printf '%s' "$new_content" | git hash-object -w --stdin)
+    mode=$(git ls-files --stage "$f" | awk '{print $1}')
+    git update-index --cacheinfo "$mode" "$new_hash" "$f"
+
+    echo "  [pre-commit] 剝離 Obsidian frontmatter: $f"
+    stripped_any=1
+done <<< "$files"
+
+if [ "$stripped_any" -eq 1 ]; then
+    echo "  [pre-commit] ✅ 已從 commit 內容剝離 created/updated frontmatter（本地檔案不動）"
+fi
+
+exit 0
