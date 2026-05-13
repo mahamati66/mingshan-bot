@@ -1,6 +1,58 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Task storage ──
+const TASKS_FILE = path.join(__dirname, 'tasks.json');
+
+function loadTasks() {
+  if (!fs.existsSync(TASKS_FILE)) return { tasks: [] };
+  try { return JSON.parse(fs.readFileSync(TASKS_FILE, 'utf8')); }
+  catch { return { tasks: [] }; }
+}
+
+function saveTasks(data) {
+  fs.writeFileSync(TASKS_FILE, JSON.stringify(data, null, 2));
+}
+
+// ── Task API ──
+app.get('/api/tasks', (req, res) => {
+  res.json(loadTasks().tasks);
+});
+
+app.post('/api/tasks', (req, res) => {
+  const { title, description = '', status = 'todo' } = req.body;
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const data = loadTasks();
+  const task = { id: Date.now().toString(), title, description, status, createdAt: new Date().toISOString() };
+  data.tasks.push(task);
+  saveTasks(data);
+  res.status(201).json(task);
+});
+
+app.patch('/api/tasks/:id', (req, res) => {
+  const data = loadTasks();
+  const task = data.tasks.find(t => t.id === req.params.id);
+  if (!task) return res.status(404).json({ error: 'not found' });
+  const { title, description, status } = req.body;
+  if (title       !== undefined) task.title       = title;
+  if (description !== undefined) task.description = description;
+  if (status      !== undefined) task.status      = status;
+  saveTasks(data);
+  res.json(task);
+});
+
+app.delete('/api/tasks/:id', (req, res) => {
+  const data = loadTasks();
+  const idx = data.tasks.findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'not found' });
+  data.tasks.splice(idx, 1);
+  saveTasks(data);
+  res.status(204).end();
+});
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'mingshan2024';
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN || '';
@@ -19,8 +71,8 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// === 健康檢查（給 UptimeRobot 用，避免打到 webhook）===
-app.get('/', (req, res) => {
+// UptimeRobot 健康檢查（原 / 改為 /health，靜態檔案接管 /）
+app.get('/health', (req, res) => {
   res.status(200).send('明善寺小助手運行中 🙏');
 });
 

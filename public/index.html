@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>專案管理看板</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans TC', sans-serif;
+      background: #eef0f5;
+      min-height: 100vh;
+      color: #1e2532;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e2e5ed;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e2532;
+    }
+    header .board-tag {
+      font-size: 12px;
+      background: #6366f1;
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-weight: 600;
+    }
+
+    /* ── Board ── */
+    .board {
+      display: flex;
+      gap: 20px;
+      padding: 28px 24px;
+      overflow-x: auto;
+      min-height: calc(100vh - 56px);
+      align-items: flex-start;
+    }
+
+    /* ── Column ── */
+    .column {
+      background: #fff;
+      border-radius: 14px;
+      width: 300px;
+      min-width: 300px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 110px);
+    }
+    .column-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid #f0f2f6;
+    }
+    .col-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .column[data-status="todo"]    .col-dot { background: #6366f1; }
+    .column[data-status="doing"]   .col-dot { background: #f59e0b; }
+    .column[data-status="done"]    .col-dot { background: #10b981; }
+    .col-title {
+      font-size: 14px;
+      font-weight: 700;
+      flex: 1;
+    }
+    .col-count {
+      font-size: 12px;
+      background: #f0f2f6;
+      color: #6b7280;
+      border-radius: 10px;
+      padding: 1px 8px;
+      font-weight: 600;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    /* ── Tasks area ── */
+    .tasks {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 12px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 80px;
+      transition: background .15s;
+    }
+    .tasks.drag-over {
+      background: #f5f6ff;
+      border-radius: 8px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border: 1px solid #e8eaf0;
+      border-radius: 10px;
+      padding: 12px 12px 10px;
+      cursor: grab;
+      transition: box-shadow .15s, transform .15s;
+      position: relative;
+    }
+    .card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.1); }
+    .card:active { cursor: grabbing; }
+    .card.dragging { opacity: .45; transform: scale(.97); }
+    .column[data-status="todo"]  .card { border-left: 3px solid #6366f1; }
+    .column[data-status="doing"] .card { border-left: 3px solid #f59e0b; }
+    .column[data-status="done"]  .card { border-left: 3px solid #10b981; opacity: .8; }
+    .column[data-status="done"]  .card-title { text-decoration: line-through; color: #9ca3af; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .card-title {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.45;
+      outline: none;
+      word-break: break-word;
+    }
+    .card-title[contenteditable="true"] {
+      background: #f5f6ff;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    .card-desc {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .btn-delete {
+      background: none;
+      border: none;
+      color: #d1d5db;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity .15s, color .15s;
+    }
+    .card:hover .btn-delete { opacity: 1; }
+    .btn-delete:hover { color: #ef4444; }
+
+    .card-hint {
+      font-size: 10px;
+      color: #c4c8d4;
+      margin-top: 8px;
+      display: none;
+    }
+    .card:hover .card-hint { display: block; }
+
+    /* ── Add card area ── */
+    .add-area { padding: 8px 12px 12px; }
+    .btn-add-card {
+      width: 100%;
+      background: none;
+      border: 2px dashed #e2e5ed;
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: #9ca3af;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-add-card:hover { border-color: #6366f1; color: #6366f1; }
+
+    .add-form { display: none; flex-direction: column; gap: 6px; }
+    .add-form input,
+    .add-form textarea {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+      color: #1e2532;
+      transition: border-color .15s;
+    }
+    .add-form input:focus,
+    .add-form textarea:focus { border-color: #6366f1; }
+    .add-form textarea { min-height: 60px; }
+
+    .form-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .btn-confirm {
+      flex: 1;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-confirm:hover { background: #4f46e5; }
+    .btn-cancel {
+      background: #f3f4f6;
+      color: #6b7280;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-cancel:hover { background: #e5e7eb; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>專案管理看板</h1>
+  <span class="board-tag">Kanban</span>
+</header>
+
+<div class="board" id="board"></div>
+
+<script>
+const COLUMNS = [
+  { id: 'todo',  label: '待辦',   emoji: '📋' },
+  { id: 'doing', label: '進行中', emoji: '🔄' },
+  { id: 'done',  label: '完成',   emoji: '✅' },
+];
+
+let tasks = [];
+let draggedId = null;
+
+/* ── API ── */
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function loadTasks() {
+  tasks = await apiFetch('/api/tasks');
+  renderAll();
+}
+
+async function addTask(title, description, status) {
+  const task = await apiFetch('/api/tasks', {
+    method: 'POST',
+    body: JSON.stringify({ title, description, status }),
+  });
+  tasks.push(task);
+  renderAll();
+}
+
+async function patchTask(id, updates) {
+  await apiFetch(`/api/tasks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+  Object.assign(tasks.find(t => t.id === id), updates);
+  renderAll();
+}
+
+async function removeTask(id) {
+  await apiFetch(`/api/tasks/${id}`, { method: 'DELETE' });
+  tasks = tasks.filter(t => t.id !== id);
+  renderAll();
+}
+
+/* ── Render ── */
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function makeCard(task) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.draggable = true;
+  el.dataset.id = task.id;
+
+  el.innerHTML = `
+    <div class="card-header">
+      <span class="card-title">${esc(task.title)}</span>
+      <button class="btn-delete" title="刪除">✕</button>
+    </div>
+    ${task.description ? `<p class="card-desc">${esc(task.description)}</p>` : ''}
+    <p class="card-hint">雙擊標題可編輯 · 拖曳可移欄</p>
+  `;
+
+  /* drag */
+  el.addEventListener('dragstart', e => {
+    draggedId = task.id;
+    el.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  el.addEventListener('dragend', () => {
+    el.classList.remove('dragging');
+    draggedId = null;
+  });
+
+  /* delete */
+  el.querySelector('.btn-delete').addEventListener('click', e => {
+    e.stopPropagation();
+    if (confirm(`刪除「${task.title}」？`)) removeTask(task.id);
+  });
+
+  /* inline edit title */
+  const titleEl = el.querySelector('.card-title');
+  titleEl.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    el.draggable = false;
+    titleEl.contentEditable = 'true';
+    titleEl.focus();
+    const range = document.createRange();
+    range.selectNodeContents(titleEl);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  });
+  titleEl.addEventListener('blur', () => {
+    el.draggable = true;
+    const newTitle = titleEl.textContent.trim();
+    titleEl.contentEditable = 'false';
+    if (newTitle && newTitle !== task.title) {
+      patchTask(task.id, { title: newTitle });
+    } else {
+      titleEl.textContent = task.title;
+    }
+  });
+  titleEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+    if (e.key === 'Escape') { titleEl.textContent = task.title; titleEl.blur(); }
+  });
+
+  return el;
+}
+
+function renderAll() {
+  COLUMNS.forEach(col => {
+    const area = document.getElementById(`tasks-${col.id}`);
+    const count = document.getElementById(`count-${col.id}`);
+    const colTasks = tasks.filter(t => t.status === col.id);
+    count.textContent = colTasks.length;
+    area.innerHTML = '';
+    colTasks.forEach(t => area.appendChild(makeCard(t)));
+  });
+}
+
+/* ── Build board DOM ── */
+function buildBoard() {
+  const board = document.getElementById('board');
+
+  COLUMNS.forEach(col => {
+    const column = document.createElement('div');
+    column.className = 'column';
+    column.dataset.status = col.id;
+
+    column.innerHTML = `
+      <div class="column-header">
+        <span class="col-dot"></span>
+        <span class="col-title">${col.emoji} ${col.label}</span>
+        <span class="col-count" id="count-${col.id}">0</span>
+      </div>
+      <div class="tasks" id="tasks-${col.id}"></div>
+      <div class="add-area">
+        <button class="btn-add-card" id="add-${col.id}">＋ 新增任務</button>
+        <div class="add-form" id="form-${col.id}">
+          <input  id="input-${col.id}"  type="text"     placeholder="任務名稱（必填）" />
+          <textarea id="desc-${col.id}" placeholder="備註說明（可選）" rows="2"></textarea>
+          <div class="form-actions">
+            <button class="btn-confirm" id="submit-${col.id}">新增</button>
+            <button class="btn-cancel"  id="cancel-${col.id}">取消</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    board.appendChild(column);
+
+    /* drop zone */
+    const area = column.querySelector('.tasks');
+    area.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      area.classList.add('drag-over');
+    });
+    area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
+    area.addEventListener('drop', e => {
+      e.preventDefault();
+      area.classList.remove('drag-over');
+      if (draggedId) {
+        const task = tasks.find(t => t.id === draggedId);
+        if (task && task.status !== col.id) patchTask(draggedId, { status: col.id });
+      }
+    });
+
+    /* add form */
+    const addBtn    = document.getElementById(`add-${col.id}`);
+    const form      = document.getElementById(`form-${col.id}`);
+    const input     = document.getElementById(`input-${col.id}`);
+    const descInput = document.getElementById(`desc-${col.id}`);
+    const submitBtn = document.getElementById(`submit-${col.id}`);
+    const cancelBtn = document.getElementById(`cancel-${col.id}`);
+
+    const showForm = () => { addBtn.style.display = 'none'; form.style.display = 'flex'; input.focus(); };
+    const hideForm = () => { form.style.display = 'none'; addBtn.style.display = 'flex'; input.value = ''; descInput.value = ''; };
+    const submit   = () => {
+      const title = input.value.trim();
+      if (!title) { input.focus(); return; }
+      addTask(title, descInput.value.trim(), col.id);
+      hideForm();
+    };
+
+    addBtn.addEventListener('click', showForm);
+    cancelBtn.addEventListener('click', hideForm);
+    submitBtn.addEventListener('click', submit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  submit();
+      if (e.key === 'Escape') hideForm();
+    });
+  });
+}
+
+buildBoard();
+loadTasks();
+</script>
+</body>
+</html>
