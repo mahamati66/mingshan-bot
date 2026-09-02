@@ -101,7 +101,7 @@ async function generateReply(comment) {
 // === 透過 Facebook Graph API 回覆留言 ===
 async function postReply(commentId, message) {
   try {
-    const response = await fetch(`https://graph.facebook.com/v19.0/${commentId}/replies`, {
+    const response = await fetch(`https://graph.facebook.com/v19.0/${commentId}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
