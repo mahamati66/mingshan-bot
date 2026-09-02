@@ -45,6 +45,7 @@ app.post('/webhook', async (req, res) => {
 
         const commentId = change.value.comment_id;
         const commentText = change.value.message;
+        const postId = change.value.post_id;
 
         if (!commentText) {
           console.log('留言無文字內容，跳過');
@@ -53,7 +54,8 @@ app.post('/webhook', async (req, res) => {
 
         console.log('收到留言：', commentText);
         try {
-          const reply = await generateReply(commentText);
+          const postMessage = postId ? await getPostMessage(postId) : null;
+          const reply = await generateReply(commentText, postMessage);
           await postReply(commentId, reply);
         } catch (err) {
           console.error('處理留言時發生錯誤:', err);
@@ -63,9 +65,25 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// === 呼叫 Claude API 產生回覆 ===
-async function generateReply(comment) {
+// === 取得該留言所屬的貼文內容（讓回覆能呼應當天貼文主題）===
+async function getPostMessage(postId) {
   try {
+    const response = await fetch(`https://graph.facebook.com/v19.0/${postId}?fields=message&access_token=${PAGE_ACCESS_TOKEN}`);
+    const data = await response.json();
+    return data.message || null;
+  } catch (err) {
+    console.error('取得貼文內容失敗:', err);
+    return null;
+  }
+}
+
+// === 呼叫 Claude API 產生回覆 ===
+async function generateReply(comment, postMessage) {
+  try {
+    const postContext = postMessage
+      ? `這則留言是留在以下這篇貼文底下，如果貼文內容跟留言有關聯，回覆時可以自然呼應貼文主題：\n"${postMessage}"\n\n`
+      : '';
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -78,7 +96,7 @@ async function generateReply(comment) {
         max_tokens: 300,
         messages: [{
           role: 'user',
-          content: `你是竹山明善寺的小助手，請用溫暖、佛法的語氣，簡短回覆這則臉書留言（100字以內，繁體中文）。若對方詢問地址或交通，請告知：地址：南投縣竹山鎮竹山路27號，電話：049-2642840。\n\n留言內容："${comment}"`
+          content: `你是竹山明善寺的小助手，請用溫暖、佛法的語氣，簡短回覆這則臉書留言（100字以內，繁體中文）。若對方詢問地址或交通，請告知：地址：南投縣竹山鎮竹山路27號，電話：049-2642840。\n\n${postContext}留言內容："${comment}"`
         }]
       })
     });
