@@ -54,8 +54,8 @@ app.post('/webhook', async (req, res) => {
 
         console.log('收到留言：', commentText);
         try {
-          const postMessage = postId ? await getPostMessage(postId) : null;
-          const reply = await generateReply(commentText, postMessage);
+          const post = postId ? await getPost(postId) : null;
+          const reply = await generateReply(commentText, post);
           await postReply(commentId, reply);
         } catch (err) {
           console.error('處理留言時發生錯誤:', err);
@@ -66,11 +66,12 @@ app.post('/webhook', async (req, res) => {
 });
 
 // === 取得該留言所屬的貼文內容（讓回覆能呼應當天貼文主題）===
-async function getPostMessage(postId) {
+async function getPost(postId) {
   try {
-    const response = await fetch(`https://graph.facebook.com/v19.0/${postId}?fields=message&access_token=${PAGE_ACCESS_TOKEN}`);
+    const response = await fetch(`https://graph.facebook.com/v19.0/${postId}?fields=message,created_time&access_token=${PAGE_ACCESS_TOKEN}`);
     const data = await response.json();
-    return data.message || null;
+    if (!data.message) return null;
+    return { message: data.message, createdTime: data.created_time };
   } catch (err) {
     console.error('取得貼文內容失敗:', err);
     return null;
@@ -78,10 +79,14 @@ async function getPostMessage(postId) {
 }
 
 // === 呼叫 Claude API 產生回覆 ===
-async function generateReply(comment, postMessage) {
+async function generateReply(comment, post) {
   try {
-    const postContext = postMessage
-      ? `這則留言是留在以下這篇貼文底下，如果貼文內容跟留言有關聯，回覆時可以自然呼應貼文主題：\n"${postMessage}"\n\n`
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+    const postDate = post && post.createdTime
+      ? new Date(post.createdTime).toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
+      : '不明';
+    const postContext = post
+      ? `今天日期：${today}（台灣時間）。這則留言是留在以下這篇貼文底下（貼文發布日：${postDate}），如果貼文內容跟留言有關聯，回覆時可以自然呼應貼文主題。若貼文提到的活動、法會日期已經過了，不要再邀請對方參加或報名，只給予祝福（例如隨喜功德、願法喜常在）：\n"${post.message}"\n\n`
       : '';
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
