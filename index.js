@@ -78,15 +78,34 @@ async function getPost(postId) {
   }
 }
 
+// === 取得粉專近期貼文（讓回覆能邀請對方參加即將到來的活動）===
+async function getRecentPosts() {
+  try {
+    const response = await fetch(`https://graph.facebook.com/v19.0/me/feed?limit=5&fields=message,created_time&access_token=${PAGE_ACCESS_TOKEN}`);
+    const data = await response.json();
+    return (data.data || [])
+      .filter(p => p.message)
+      .map(p => `- ${p.message.slice(0, 200)}`)
+      .join('\n');
+  } catch (err) {
+    console.error('取得近期貼文失敗:', err);
+    return '';
+  }
+}
+
 // === 呼叫 Claude API 產生回覆 ===
 async function generateReply(comment, post) {
   try {
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+    const recentPosts = await getRecentPosts();
+    const upcomingContext = recentPosts
+      ? `\n以下是粉專近期貼文，若其中有日期在今天（${today}）之後、即將到來的活動或法會，可在祝福之後順帶邀請對方參加；若沒有，就只給祝福，不要編造活動：\n${recentPosts}\n\n`
+      : '';
     const postDate = post && post.createdTime
       ? new Date(post.createdTime).toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
       : '不明';
     const postContext = post
-      ? `今天日期：${today}（台灣時間）。這則留言是留在以下這篇貼文底下（貼文發布日：${postDate}），如果貼文內容跟留言有關聯，回覆時可以自然呼應貼文主題。若貼文提到的活動、法會日期已經過了，不要再邀請對方參加或報名，只給予祝福（例如隨喜功德、願法喜常在）：\n"${post.message}"\n\n`
+      ? `今天日期：${today}（台灣時間）。這則留言是留在以下這篇貼文底下（貼文發布日：${postDate}），如果貼文內容跟留言有關聯，回覆時可以自然呼應貼文主題。若貼文提到的活動、法會日期已經過了，不要再邀請對方參加那個已過期的活動，只給予祝福（例如隨喜功德、願法喜常在）：\n"${post.message}"\n\n`
       : '';
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -101,7 +120,7 @@ async function generateReply(comment, post) {
         max_tokens: 300,
         messages: [{
           role: 'user',
-          content: `你是竹山明善寺的小助手，請用溫暖、佛法的語氣，簡短回覆這則臉書留言（100字以內，繁體中文）。若對方詢問地址或交通，請告知：地址：南投縣竹山鎮竹山路27號，電話：049-2642840。\n\n${postContext}留言內容："${comment}"`
+          content: `你是竹山明善寺的小助手，請用溫暖、佛法的語氣，簡短回覆這則臉書留言（100字以內，繁體中文）。若對方詢問地址或交通，請告知：地址：南投縣竹山鎮竹山路27號，電話：049-2642840。\n\n${postContext}${upcomingContext}留言內容："${comment}"`
         }]
       })
     });
