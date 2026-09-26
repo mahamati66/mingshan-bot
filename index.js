@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const app = express();
 app.use(express.json());
@@ -78,17 +80,16 @@ async function getPost(postId) {
   }
 }
 
-// === 取得粉專近期貼文（讓回覆能邀請對方參加即將到來的活動）===
-async function getRecentPosts() {
+// === 取得即將到來的活動（來自 events.json，過期的自動略過）===
+function getUpcomingEvents(today) {
   try {
-    const response = await fetch(`https://graph.facebook.com/v19.0/me/feed?limit=5&fields=message,created_time&access_token=${PAGE_ACCESS_TOKEN}`);
-    const data = await response.json();
-    return (data.data || [])
-      .filter(p => p.message)
-      .map(p => `- ${p.message.slice(0, 200)}`)
+    return JSON.parse(fs.readFileSync(path.join(__dirname, 'events.json'), 'utf8'))
+      .filter(e => e.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(e => `- ${e.date}　${e.name}`)
       .join('\n');
   } catch (err) {
-    console.error('取得近期貼文失敗:', err);
+    console.error('讀取 events.json 失敗:', err);
     return '';
   }
 }
@@ -97,9 +98,9 @@ async function getRecentPosts() {
 async function generateReply(comment, post) {
   try {
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
-    const recentPosts = await getRecentPosts();
-    const upcomingContext = recentPosts
-      ? `\n以下是粉專近期貼文，若其中有日期在今天（${today}）之後、即將到來的活動或法會，可在祝福之後順帶邀請對方參加；若沒有，就只給祝福，不要編造活動：\n${recentPosts}\n\n`
+    const upcomingEvents = getUpcomingEvents(today);
+    const upcomingContext = upcomingEvents
+      ? `\n以下是明善寺即將到來的活動，可在祝福之後順帶邀請對方參加最近的一場（只能用這份清單，不要編造活動或日期）：\n${upcomingEvents}\n\n`
       : '';
     const postDate = post && post.createdTime
       ? new Date(post.createdTime).toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
