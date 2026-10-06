@@ -7,6 +7,8 @@ app.use(express.json());
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'mingshan2024';
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN || '';
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || '';
+// 回覆時順帶邀請即將到來活動的機率（0.3 = 約三則回覆邀請一次）
+const INVITE_RATE = 0.3;
 
 // === Webhook 驗證（GET）===
 app.get('/webhook', (req, res) => {
@@ -98,9 +100,9 @@ function getUpcomingEvents(today) {
 async function generateReply(comment, post) {
   try {
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
-    const upcomingEvents = getUpcomingEvents(today);
+    const upcomingEvents = Math.random() < INVITE_RATE ? getUpcomingEvents(today) : '';
     const upcomingContext = upcomingEvents
-      ? `\n以下是明善寺即將到來的活動，可在祝福之後順帶邀請對方參加最近的一場（只能用這份清單，不要編造活動或日期）：\n${upcomingEvents}\n\n`
+      ? `\n以下是明善寺即將到來的活動，可在祝福之後自然、簡短地順帶邀請對方參加最近的一場，不要寫得像廣告（只能用這份清單，不要編造活動或日期）：\n${upcomingEvents}\n\n`
       : '';
     const postDate = post && post.createdTime
       ? new Date(post.createdTime).toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
