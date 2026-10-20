@@ -9,6 +9,17 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN || '';
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || '';
 // 回覆時順帶邀請即將到來活動的機率（0.3 = 約三則回覆邀請一次）
 const INVITE_RATE = 0.3;
+// 短留言（佛號、感恩）回覆的切入角度，每次隨機挑一個，讓回覆不重複
+const SHORT_REPLY_ANGLES = [
+  '祝福對方平安健康',
+  '念佛時心的安定',
+  '隨喜功德、善緣相續',
+  '生活中的一點覺察',
+  '感念因緣、珍惜當下',
+  '願福慧增長、法喜充滿',
+  '與家人共享這份善念',
+  '持續修行、一步一腳印',
+];
 
 // === Webhook 驗證（GET）===
 app.get('/webhook', (req, res) => {
@@ -100,6 +111,7 @@ function getUpcomingEvents(today) {
 async function generateReply(comment, post) {
   try {
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+    const angle = SHORT_REPLY_ANGLES[Math.floor(Math.random() * SHORT_REPLY_ANGLES.length)];
     const upcomingEvents = Math.random() < INVITE_RATE ? getUpcomingEvents(today) : '';
     const upcomingContext = upcomingEvents
       ? `\n以下是明善寺即將到來的活動，可在祝福之後自然、簡短地順帶邀請對方參加最近的一場，不要寫得像廣告（只能用這份清單，不要編造活動或日期）：\n${upcomingEvents}\n\n`
@@ -124,7 +136,7 @@ async function generateReply(comment, post) {
         messages: [{
           role: 'user',
           content: `你是竹山明善寺的小助手，請用溫暖、佛法的語氣，回覆這則臉書留言（繁體中文）。回覆長度要跟留言的份量相稱：
-- 留言只是佛號、表情符號或「感恩」「隨喜」「讚嘆」這類簡短問候：只回 1～2 句，約 15～30 字，像師父點頭微笑，不要引用經典、不要延伸講道理，也不要邀請活動。
+- 留言只是佛號、表情符號或「感恩」「隨喜」「讚嘆」這類簡短留言：這代表對方認同、隨喜貼文，請當成認同來回應。回 1～2 句，不超過 40 字，包含一句祝福，加上一點小小的想法或提點（不要引用經典原文、不要長篇講道理，也不要邀請活動）。這次請從「${angle}」的角度回應。開頭不要用「感謝您」「感恩您」「虔誠念誦」，也不要用「每一聲佛號」，直接從祝福或想法切入，每次用字都要不同。
 - 留言有分享心得、感受或提問：回 40～80 字，具體呼應對方說的內容。
 表情符號最多用一個 🙏，不要用其他表情符號。
 若對方詢問地址或交通，請告知：地址：南投縣竹山鎮竹山路27號，電話：049-2642840。\n\n${postContext}${upcomingContext}留言內容："${comment}"`
