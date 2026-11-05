@@ -2,10 +2,11 @@
  * 明善寺 義工打卡 —— Google Apps Script（貼到試算表的「擴充功能 → Apps Script」）
  *
  * 規則：來寺裡時碰一下貼紙＝ +1 點（修福＝存福、修慧＝存慧）
- *       一天最多 2 點，同一天第二次要跟第一次隔 4 小時以上
+ *       修福、修慧分開算：各自一天最多 2 點，同一類第二次要跟第一次隔 4 小時以上
  *
  * 試算表會有這些工作表：
- *   打卡紀錄：每一列就是 1 點
+ *   修福紀錄：發心工作，每一列就是 1 點（存福）
+ *   修慧紀錄：來上課、共修聞法，每一列就是 1 點（存慧）
  *   義工名冊：LINE 帳號 ↔ 名字（名字要改，直接改這裡）
  *            「權限」欄填「負責人」，這個人就能在 LINE 看全部義工的點數
  *   護持統計：自動加總每個人的存福、存慧點數
@@ -17,29 +18,31 @@
 // 要跟伺服器的 CHECKIN_SECRET 一模一樣
 const SECRET = '請改成一組只有你知道的密碼';
 const TZ = 'Asia/Taipei';
-// 一天最多幾點
+// 修福、修慧各自一天最多幾點
 const MAX_PER_DAY = 2;
-// 同一天兩次打卡至少要隔幾小時
+// 同一類同一天兩次打卡至少要隔幾小時
 const GAP_HOURS = 4;
 
-const LOG = '打卡紀錄';
+const LOGS = { 修福: '修福紀錄', 修慧: '修慧紀錄' };
 const ROSTER = '義工名冊';
 const STATS = '護持統計';
 const EVENTS = '活動行事曆';
 const TYPES = ['修福', '修慧'];
 
-// 打卡紀錄的欄位：0 時間｜1 日期｜2 姓名｜3 地點｜4 類別｜5 LINE ID
-const LOG_COLS = 6;
+// 修福紀錄、修慧紀錄的欄位：時間｜日期｜姓名｜地點｜LINE ID
+const LOG_COLS = 5;
 
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  const log = ss.getSheetByName(LOG) || ss.insertSheet(LOG);
-  log.getRange(1, 1, 1, LOG_COLS).setValues([['時間', '日期', '姓名', '地點', '類別', 'LINE ID']]);
-  log.setFrozenRows(1);
-  log.getRange('A:A').setNumberFormat('yyyy/mm/dd hh:mm');
-  log.getRange('B:B').setNumberFormat('@');  // 日期存成文字，避免被自動轉格式
-  log.hideColumns(LOG_COLS);
+  TYPES.forEach(type => {
+    const log = ss.getSheetByName(LOGS[type]) || ss.insertSheet(LOGS[type]);
+    log.getRange(1, 1, 1, LOG_COLS).setValues([['時間', '日期', '姓名', '地點', 'LINE ID']]);
+    log.setFrozenRows(1);
+    log.getRange('A:A').setNumberFormat('yyyy/mm/dd hh:mm');
+    log.getRange('B:B').setNumberFormat('@');  // 日期存成文字，避免被自動轉格式
+    log.hideColumns(LOG_COLS);
+  });
 
   const roster = ss.getSheetByName(ROSTER) || ss.insertSheet(ROSTER);
   roster.getRange(1, 1, 1, 5).setValues([['LINE ID', '姓名', 'LINE 名稱', '登記時間', '權限']]);
@@ -50,10 +53,10 @@ function setup() {
   stats.clear();
   stats.getRange('A1').setValue('存福（發心工作）');
   stats.getRange('A2').setFormula(
-    `=IFERROR(QUERY('${LOG}'!A2:E, "select C, count(C) where E = '修福' group by C order by count(C) desc label C '姓名', count(C) '點數'", 0), "尚無紀錄")`);
+    `=IFERROR(QUERY('${LOGS['修福']}'!A2:E, "select C, count(C) where C <> '' group by C order by count(C) desc label C '姓名', count(C) '點數'", 0), "尚無紀錄")`);
   stats.getRange('D1').setValue('存慧（來上課）');
   stats.getRange('D2').setFormula(
-    `=IFERROR(QUERY('${LOG}'!A2:E, "select C, count(C) where E = '修慧' group by C order by count(C) desc label C '姓名', count(C) '點數'", 0), "尚無紀錄")`);
+    `=IFERROR(QUERY('${LOGS['修慧']}'!A2:E, "select C, count(C) where C <> '' group by C order by count(C) desc label C '姓名', count(C) '點數'", 0), "尚無紀錄")`);
   stats.getRange('A1:D1').setFontWeight('bold');
 
   // 活動行事曆：福慧存摺的「本月重點活動」從這裡讀，每月由知客處更新
@@ -92,9 +95,18 @@ function doPost(e) {
   }
 }
 
+// 把修福紀錄、修慧紀錄合在一起，照時間排好
+// 每一列整理成：0 時間｜1 日期｜2 姓名｜3 地點｜4 類別｜5 LINE ID
 function logRows(ss) {
-  const log = ss.getSheetByName(LOG);
-  return log.getLastRow() > 1 ? log.getRange(2, 1, log.getLastRow() - 1, LOG_COLS).getValues() : [];
+  const all = [];
+  TYPES.forEach(type => {
+    const log = ss.getSheetByName(LOGS[type]);
+    if (!log || log.getLastRow() < 2) return;
+    log.getRange(2, 1, log.getLastRow() - 1, LOG_COLS).getValues().forEach(r => {
+      if (r[4]) all.push([r[0], String(r[1]), r[2], r[3], type, r[4]]);
+    });
+  });
+  return all.sort((a, b) => new Date(a[0]) - new Date(b[0]));
 }
 
 const hhmm = d => Utilities.formatDate(new Date(d), TZ, 'HH:mm');
@@ -118,49 +130,50 @@ function handle(req) {
     name = newName;
   }
 
-  // 2. 看這個人今天碰過幾次、今年各類別幾點、累積幾點
+  // 2. 確定是修福還是修慧
+  const type = TYPES.indexOf(req.spotType) >= 0 ? req.spotType
+             : TYPES.indexOf(req.type) >= 0 ? req.type
+             : null;
+  if (!type) return { ok: true, status: 'needType', name: name };
+
+  // 3. 看這個人今天這一類碰過幾次、今年這一類幾點、累積幾點
   const today = Utilities.formatDate(now, TZ, 'yyyy-MM-dd');
   const year = today.slice(0, 4);
   const todayRows = [];
-  const yearCount = { 修福: 0, 修慧: 0 };
+  let yearCount = 0;
   let total = 0;
   for (const r of logRows(ss)) {
-    if (r[5] !== req.userId || TYPES.indexOf(r[4]) < 0) continue;
+    if (r[5] !== req.userId) continue;
     total++;
-    if (String(r[1]).slice(0, 4) === year) yearCount[r[4]]++;
-    if (String(r[1]) === today) todayRows.push(r);
+    if (r[4] !== type) continue;
+    if (r[1].slice(0, 4) === year) yearCount++;
+    if (r[1] === today) todayRows.push(r);
   }
 
-  // 3. 今天已經滿 2 點
+  // 4. 這一類今天已經滿 2 點
   if (todayRows.length >= MAX_PER_DAY) {
-    return { ok: true, status: 'dailyMax', name: name, times: todayRows.map(r => hhmm(r[0])) };
+    return { ok: true, status: 'dailyMax', name: name, type: type, times: todayRows.map(r => hhmm(r[0])) };
   }
 
-  // 4. 今天上一次打卡還沒滿 4 小時
+  // 5. 這一類今天上一次打卡還沒滿 4 小時
   if (todayRows.length) {
     const lastAt = new Date(todayRows[todayRows.length - 1][0]);
     const nextAt = new Date(lastAt.getTime() + GAP_HOURS * 3600 * 1000);
     if (now < nextAt) {
       const nextDay = Utilities.formatDate(nextAt, TZ, 'yyyy-MM-dd') !== today;
       return {
-        ok: true, status: 'tooSoon', name: name,
+        ok: true, status: 'tooSoon', name: name, type: type,
         lastAt: hhmm(lastAt), nextAt: nextDay ? '' : hhmm(nextAt),
         justNow: now - lastAt < 5 * 60 * 1000,
       };
     }
   }
 
-  // 5. 確定是修福還是修慧
-  const type = TYPES.indexOf(req.spotType) >= 0 ? req.spotType
-             : TYPES.indexOf(req.type) >= 0 ? req.type
-             : null;
-  if (!type) return { ok: true, status: 'needType', name: name };
-
-  // 6. 記 1 點
-  ss.getSheetByName(LOG).appendRow([now, today, name, req.spot, type, req.userId]);
+  // 6. 記 1 點到修福紀錄或修慧紀錄
+  ss.getSheetByName(LOGS[type]).appendRow([now, today, name, req.spot, req.userId]);
   return {
     ok: true, status: 'arrive', name: name, type: type,
-    count: yearCount[type] + 1, total: total + 1, today: todayRows.length + 1,
+    count: yearCount + 1, total: total + 1, today: todayRows.length + 1,
   };
 }
 

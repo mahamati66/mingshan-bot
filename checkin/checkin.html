@@ -147,11 +147,11 @@
     修慧: ['歡迎來聞法，今天也一起增長智慧', '靜下心來，好好聽、好好想', '很高興今天又在這裡見到您'],
   };
 
-  // 打卡後的小提醒：一天最多 2 點，第二次要隔 4 小時
-  function todayHint(n) {
+  // 打卡後的小提醒：修福、修慧各自一天最多 2 點，同一類第二次要隔 4 小時
+  function todayHint(n, t) {
     return n >= 2
-      ? '今天的 2 點都存滿了，願您福慧增長'
-      : '隔 4 小時後的另一個時段再來，可以再存 1 點';
+      ? `今天的${t}存滿 2 點了，願您福慧增長`
+      : `隔 4 小時後的另一個時段再來${t}，可以再存 1 點`;
   }
 
   function show(html) { view.innerHTML = html; }
@@ -212,7 +212,7 @@
             <p>${lv.cur.desc}</p>
             <div class="tag">${t} · ${esc(data.spotLabel || '')}</div>
             <div class="big" style="font-size:22px">${plus}・累積 ${data.total} 點</div>
-            <p style="font-size:13px">${todayHint(data.today)}</p>
+            <p style="font-size:13px">${todayHint(data.today, t)}</p>
             <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
         }
         return show(`
@@ -222,20 +222,20 @@
           <div class="tag">${t} · ${esc(data.spotLabel || '')}</div>
           <div class="big" style="font-size:22px">${plus}</div>
           <p>累積 ${data.total} 點・今年第 ${data.count} 次來${t}</p>
-          <p style="font-size:13px;margin-top:6px">${todayHint(data.today)}</p>
+          <p style="font-size:13px;margin-top:6px">${todayHint(data.today, t)}</p>
           <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
       }
       case 'tooSoon':
         if (data.justNow) {
-          return showMessage('🙏', '剛剛已經打過卡囉', `${esc(data.lastAt)} 已經幫您記下，不用再碰了`);
+          return showMessage('🙏', '剛剛已經打過卡囉', `${esc(data.lastAt)} 已經幫您記下${t}，不用再碰了`);
         }
-        return showMessage('🙏', `${esc(data.name)}，今天已經打過卡囉`,
-          `上一次是 ${esc(data.lastAt)}<br>` + (data.nextAt
+        return showMessage('🙏', `${esc(data.name)}，今天已經${t}打過卡囉`,
+          `上一次${t}是 ${esc(data.lastAt)}<br>` + (data.nextAt
             ? `同一天要隔 4 小時，<b style="color:var(--green)">${esc(data.nextAt)}</b> 以後再碰，就能再存 1 點`
             : '同一天要隔 4 小時才能再存，今天就先這樣，明天再來 🙏'));
       case 'dailyMax':
-        return showMessage('🙏', `${esc(data.name)}，今天已經存滿囉`,
-          `今天 ${data.times.map(esc).join('、')} 各存了 1 點<br>一天最多 2 點，明天再來，願您法喜充滿`);
+        return showMessage('🙏', `${esc(data.name)}，今天的${t}存滿囉`,
+          `今天 ${data.times.map(esc).join('、')} 各存了 1 點${t}<br>${t}一天最多 2 點，明天再來，願您法喜充滿`);
       default:
         return showMessage('・', '打卡沒有成功', '請再碰一次貼紙 🙏');
     }
