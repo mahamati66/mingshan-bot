@@ -1,8 +1,10 @@
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
 const app = express();
-app.use(express.json());
+// 保留原始內容，LINE webhook 要用它驗證簽章
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'mingshan2024';
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN || '';
@@ -293,6 +295,200 @@ for (const action of ['passbook', 'admin']) {
     }
   });
 }
+
+// =====================================================================
+// LINE 官方帳號：信眾傳「打卡」「存摺」＋每月統計表
+// Webhook URL：https://<機器人網址>/line/webhook
+// 每月統計：https://<機器人網址>/line/report?key=<REPORT_KEY>
+// =====================================================================
+const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET || '';
+const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+const REPORT_KEY = process.env.REPORT_KEY || '';
+
+const CHECKIN_WORDS = ['打卡'];
+const PASSBOOK_WORDS = ['存摺', '存折', '福慧存摺', '福慧存折'];
+
+function validLineSignature(req) {
+  const signature = req.get('x-line-signature') || '';
+  if (!LINE_CHANNEL_SECRET || !signature || !req.rawBody) return false;
+  const expected = crypto.createHmac('sha256', LINE_CHANNEL_SECRET).update(req.rawBody).digest('base64');
+  const a = Buffer.from(signature), b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+async function lineReply(replyToken, text) {
+  const response = await fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+    body: JSON.stringify({ replyToken, messages: [{ type: 'text', text }] }),
+  });
+  if (!response.ok) console.error('LINE 回覆失敗:', response.status, await response.text());
+}
+
+async function lineDisplayName(userId) {
+  try {
+    const response = await fetch(`https://api.line.me/v2/bot/profile/${encodeURIComponent(userId)}`, {
+      headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+    });
+    if (!response.ok) return '';
+    return (await response.json()).displayName || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+async function handleLineText(event) {
+  const text = (event.message.text || '').trim();
+  const userId = event.source && event.source.userId;
+  if (!userId) return;
+  const isCheckin = CHECKIN_WORDS.includes(text);
+  const isPassbook = PASSBOOK_WORDS.includes(text);
+  if (!isCheckin && !isPassbook) return;  // 其他訊息交給官方帳號原本的自動回應
+
+  if (!CHECKIN_SCRIPT_URL || !CHECKIN_SECRET) {
+    console.error('信眾打卡尚未設定：請設定 CHECKIN_SCRIPT_URL、CHECKIN_SECRET');
+    return lineReply(event.replyToken, '阿彌陀佛，打卡功能還在準備中，請稍候再試 🙏');
+  }
+
+  if (isCheckin) {
+    const name = await lineDisplayName(userId);
+    const r = await callCheckinScript({ action: 'devoteeCheckin', userId, name });
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    const numbers = `累計 ${r.totalDays} 天，連續 ${r.streak} 天`;
+    return lineReply(event.replyToken, r.status === 'already'
+      ? `阿彌陀佛，今天已經打卡囉 🙏\n本月第 ${r.monthDays} 天，${numbers}`
+      : `阿彌陀佛，今天是您本月第 ${r.monthDays} 天打卡，${numbers} 🙏`);
+  }
+
+  const r = await callCheckinScript({ action: 'devoteeStats', userId });
+  if (!r.ok) throw new Error(JSON.stringify(r));
+  if (!r.totalDays) {
+    return lineReply(event.replyToken, '阿彌陀佛，您的福慧存摺還是新的 🙏\n傳「打卡」，就從今天開始記錄');
+  }
+  return lineReply(event.replyToken, [
+    '阿彌陀佛，這是您的福慧存摺 🙏',
+    `累計打卡：${r.totalDays} 天`,
+    `連續打卡：${r.streak} 天`,
+    `本月打卡：${r.monthDays} 天`,
+    r.checkedToday ? '今天已經打卡囉' : '今天還沒打卡，傳「打卡」就可以囉',
+  ].join('\n'));
+}
+
+app.post('/line/webhook', (req, res) => {
+  if (!validLineSignature(req)) {
+    console.warn('LINE webhook 簽章不符，略過');
+    return res.sendStatus(401);
+  }
+  res.sendStatus(200);  // 先回 200，再慢慢處理
+
+  for (const event of (req.body && req.body.events) || []) {
+    if (event.type !== 'message' || !event.message || event.message.type !== 'text') continue;
+    handleLineText(event).catch(err => {
+      console.error('處理 LINE 打卡失敗:', err);
+      lineReply(event.replyToken, '阿彌陀佛，系統剛剛有點忙，請稍後再傳一次 🙏').catch(() => {});
+    });
+  }
+});
+
+// === 每月統計表（只有知道 REPORT_KEY 的人能看）===
+function reportAllowed(req, res) {
+  const key = String(req.query.key || '');
+  const ok = REPORT_KEY && key.length === REPORT_KEY.length &&
+    crypto.timingSafeEqual(Buffer.from(key), Buffer.from(REPORT_KEY));
+  if (!ok) res.status(404).send('Not Found');
+  return ok;
+}
+
+function shiftMonth(month, delta) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+const htmlEsc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function loadReport(req) {
+  const thisMonth = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }).slice(0, 7);
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : thisMonth;
+  const r = await callCheckinScript({ action: 'devoteeReport', month });
+  if (!r.ok) throw new Error(JSON.stringify(r));
+  return r;
+}
+
+app.get('/line/report', async (req, res) => {
+  if (!reportAllowed(req, res)) return;
+  let r;
+  try {
+    r = await loadReport(req);
+  } catch (err) {
+    console.error('讀取每月統計失敗:', err);
+    return res.status(500).send('統計表暫時打不開，請稍後再試');
+  }
+  const key = encodeURIComponent(String(req.query.key));
+  const link = m => `/line/report?key=${key}&month=${m}`;
+  const rows = r.people.map((p, i) => `
+    <tr><td class="n">${i + 1}</td><td>${htmlEsc(p.name)}</td><td class="d">${p.days}</td><td class="l">${htmlEsc(p.last.slice(5).replace('-', '/'))}</td></tr>`).join('');
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>信眾打卡月報 ${r.month}</title>
+<style>
+  :root { --bg:#f6f2ea; --card:#fffdf8; --ink:#2f2a24; --muted:#8a8174; --green:#3d5a45; --gold:#b08d57; --line:#e7dfd1; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif; }
+  .wrap { max-width:640px; margin:0 auto; padding:28px 16px 48px; }
+  .brand { font-size:13px; letter-spacing:.35em; color:var(--gold); }
+  h1 { font-size:22px; margin:8px 0 20px; letter-spacing:.1em; font-weight:600; }
+  .nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .nav a { color:var(--gold); text-decoration:none; font-size:14px; }
+  .nav b { font-size:18px; letter-spacing:.08em; }
+  .sum { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  .sum div { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 8px; text-align:center; }
+  .sum b { display:block; font-size:28px; color:var(--green); font-weight:600; }
+  .sum span { font-size:13px; color:var(--muted); letter-spacing:.1em; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  th, td { padding:12px 14px; border-top:1px solid var(--line); font-size:15px; text-align:left; }
+  th { border-top:none; font-size:12px; color:var(--muted); font-weight:500; letter-spacing:.1em; background:#f3ece0; }
+  .n { width:44px; color:var(--muted); font-size:13px; }
+  .d { text-align:right; color:var(--green); font-weight:600; }
+  .l { text-align:right; color:var(--muted); font-size:13px; width:80px; }
+  .csv { display:block; margin-top:18px; text-align:center; padding:14px; border-radius:12px; background:var(--green); color:#fff; text-decoration:none; letter-spacing:.12em; }
+  .empty { padding:32px; text-align:center; color:var(--muted); }
+  .note { margin-top:18px; font-size:12px; color:var(--muted); text-align:center; line-height:1.8; }
+</style></head><body><div class="wrap">
+  <div class="brand">竹山 明善寺</div>
+  <h1>信眾打卡月報</h1>
+  <div class="nav"><a href="${link(shiftMonth(r.month, -1))}">← 上個月</a><b>${r.month.replace('-', ' 年 ')} 月</b><a href="${link(shiftMonth(r.month, 1))}">下個月 →</a></div>
+  <div class="sum">
+    <div><b>${r.people.length}</b><span>位信眾</span></div>
+    <div><b>${r.visits}</b><span>全寺總人次</span></div>
+  </div>
+  ${r.people.length ? `<table><tr><th class="n">#</th><th>姓名（LINE 名稱）</th><th class="d">打卡天數</th><th class="l">最近</th></tr>${rows}</table>`
+    : '<div class="empty">這個月還沒有人打卡</div>'}
+  <a class="csv" href="/line/report.csv?key=${key}&month=${r.month}">下載 CSV（用 Excel 開）</a>
+  <div class="note">這個網址只有您知道，請不要分享出去<br>全寺總人次＝這個月每位信眾打卡天數的加總</div>
+</div></body></html>`);
+});
+
+app.get('/line/report.csv', async (req, res) => {
+  if (!reportAllowed(req, res)) return;
+  let r;
+  try {
+    r = await loadReport(req);
+  } catch (err) {
+    console.error('下載每月統計失敗:', err);
+    return res.status(500).send('統計表暫時打不開，請稍後再試');
+  }
+  // 名稱開頭是 = + - @ 時加上 '，避免 Excel 當成公式執行
+  const cell = v => `"${String(v).replace(/^[=+\-@]/, "'$&").replace(/"/g, '""')}"`;
+  const lines = [['月份', '姓名（LINE 名稱）', '打卡天數', '最近打卡日'].map(cell).join(',')]
+    .concat(r.people.map(p => [r.month, p.name, p.days, p.last].map(cell).join(',')))
+    .concat([[r.month, '全寺總人次', r.visits, ''].map(cell).join(',')]);
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="mingshan-checkin-${r.month}.csv"`);
+  res.send('\uFEFF' + lines.join('\r\n'));  // 加 BOM，Excel 開中文才不會亂碼
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`明善寺小助手運行中，Port: ${PORT}`));

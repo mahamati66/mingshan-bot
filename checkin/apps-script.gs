@@ -11,6 +11,7 @@
  *            「權限」欄填「負責人」，這個人就能在 LINE 看全部義工的點數
  *   護持統計：自動加總每個人的存福、存慧點數
  *   活動行事曆：福慧存摺「本月重點活動」的來源
+ *   信眾打卡：LINE 官方帳號傳「打卡」的紀錄（一人一天一列）
  *
  * 第一次使用：把 SECRET 改掉 → 執行一次 setup() → 部署成「網頁應用程式」。
  */
@@ -27,6 +28,7 @@ const LOGS = { 修福: '修福紀錄', 修慧: '修慧紀錄' };
 const ROSTER = '義工名冊';
 const STATS = '護持統計';
 const EVENTS = '活動行事曆';
+const DEVOTEE = '信眾打卡';
 const TYPES = ['修福', '修慧'];
 
 // 修福紀錄、修慧紀錄的欄位：時間｜日期｜姓名｜地點｜LINE ID
@@ -59,6 +61,14 @@ function setup() {
     `=IFERROR(QUERY('${LOGS['修慧']}'!A2:E, "select C, count(C) where C <> '' group by C order by count(C) desc label C '姓名', count(C) '點數'", 0), "尚無紀錄")`);
   stats.getRange('A1:D1').setFontWeight('bold');
 
+  // 信眾打卡：LINE 官方帳號傳「打卡」
+  const devotee = ss.getSheetByName(DEVOTEE) || ss.insertSheet(DEVOTEE);
+  devotee.getRange(1, 1, 1, 4).setValues([['日期', '時間', '姓名', 'LINE ID']]);
+  devotee.setFrozenRows(1);
+  devotee.getRange('A:A').setNumberFormat('@');
+  devotee.getRange('B:B').setNumberFormat('yyyy/mm/dd hh:mm');
+  devotee.hideColumns(4);
+
   // 活動行事曆：福慧存摺的「本月重點活動」從這裡讀，每月由知客處更新
   let events = ss.getSheetByName(EVENTS);
   if (!events) {
@@ -88,7 +98,10 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
-    const fn = { passbook: passbook, admin: admin }[req.action] || handle;
+    const fn = {
+      passbook: passbook, admin: admin,
+      devoteeCheckin: devoteeCheckin, devoteeStats: devoteeStats, devoteeReport: devoteeReport,
+    }[req.action] || handle;
     return json(fn(req));
   } finally {
     lock.releaseLock();
@@ -233,6 +246,93 @@ function admin(req) {
   }
   const list = Object.values(people).sort((a, b) => (b.fu + b.hui) - (a.fu + a.hui));
   return { ok: true, status: 'admin', year: year, people: list };
+}
+
+// =====================================================================
+// 信眾打卡（LINE 官方帳號傳「打卡」「存摺」）：一人一天算一次
+// =====================================================================
+
+function devoteeSheet(ss) {
+  let sheet = ss.getSheetByName(DEVOTEE);
+  if (!sheet) {  // 舊試算表沒跑過新版 setup 時，自動補上
+    sheet = ss.insertSheet(DEVOTEE);
+    sheet.getRange(1, 1, 1, 4).setValues([['日期', '時間', '姓名', 'LINE ID']]);
+    sheet.getRange('A:A').setNumberFormat('@');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function devoteeRows(sheet) {
+  return sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues() : [];
+}
+
+function dayString(d) {
+  return Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
+}
+
+// 從這個人的打卡日期算：本月幾天、累計幾天、連續幾天
+function devoteeNumbers(dates, today) {
+  const set = {};
+  dates.forEach(d => { set[d] = true; });
+  const month = today.slice(0, 7);
+  const all = Object.keys(set);
+  // 連續天數：今天有打卡就從今天往回數；今天還沒打，就從昨天往回數（還沒斷）
+  const day = new Date(today + 'T12:00:00+08:00');
+  if (!set[today]) day.setDate(day.getDate() - 1);
+  let streak = 0;
+  while (set[dayString(day)]) {
+    streak++;
+    day.setDate(day.getDate() - 1);
+  }
+  return {
+    monthDays: all.filter(d => d.slice(0, 7) === month).length,
+    totalDays: all.length,
+    streak: streak,
+    checkedToday: !!set[today],
+  };
+}
+
+/** req: { userId, name } */
+function devoteeCheckin(req) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = devoteeSheet(ss);
+  const now = new Date();
+  const today = dayString(now);
+  const dates = devoteeRows(sheet).filter(r => r[3] === req.userId).map(r => String(r[0]));
+  const already = dates.indexOf(today) >= 0;
+  if (!already) {
+    sheet.appendRow([today, now, String(req.name || '').slice(0, 40), req.userId]);
+    dates.push(today);
+  }
+  return Object.assign({ ok: true, status: already ? 'already' : 'checkedIn' }, devoteeNumbers(dates, today));
+}
+
+/** req: { userId } */
+function devoteeStats(req) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const dates = devoteeRows(devoteeSheet(ss)).filter(r => r[3] === req.userId).map(r => String(r[0]));
+  return Object.assign({ ok: true, status: 'stats' }, devoteeNumbers(dates, dayString(new Date())));
+}
+
+/** 每月統計 req: { month: 'yyyy-MM' } */
+function devoteeReport(req) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const month = /^\d{4}-\d{2}$/.test(req.month || '') ? req.month : Utilities.formatDate(new Date(), TZ, 'yyyy-MM');
+  const people = {};
+  let visits = 0;
+  for (const r of devoteeRows(devoteeSheet(ss))) {
+    const date = String(r[0]);
+    if (date.slice(0, 7) !== month || !r[3]) continue;
+    const p = people[r[3]] || (people[r[3]] = { name: '', days: {}, last: '' });
+    if (!p.days[date]) { p.days[date] = true; visits++; }
+    if (r[2]) p.name = String(r[2]);  // 用最新的 LINE 名稱
+    if (date > p.last) p.last = date;
+  }
+  const list = Object.values(people)
+    .map(p => ({ name: p.name || '（未留名）', days: Object.keys(p.days).length, last: p.last }))
+    .sort((a, b) => b.days - a.days || a.name.localeCompare(b.name));
+  return { ok: true, status: 'report', month: month, people: list, visits: visits };
 }
 
 // 本月重點活動（活動行事曆中「月份」等於這個月的）

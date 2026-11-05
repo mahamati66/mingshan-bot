@@ -87,3 +87,48 @@
 - 要補點數：直接在「修福紀錄」或「修慧紀錄」新增一列（LINE ID 從「義工名冊」複製）。
 - 名字要改：改「義工名冊」的姓名欄。
 - 改蓮花門檻：改 `lotus.js` 裡的 `LOTUS_LEVELS`。
+
+---
+
+# LINE 官方帳號：信眾「打卡」「存摺」＋每月統計
+
+跟上面的義工 NFC 打卡分開記錄（試算表「信眾打卡」工作表，一人一天一列）。
+
+| 信眾傳 | 機器人回 |
+|---|---|
+| `打卡` | 阿彌陀佛，今天是您本月第 N 天打卡，累計 X 天，連續 Y 天 🙏 |
+| 同一天再傳 `打卡` | 阿彌陀佛，今天已經打卡囉 🙏（不重複計算） |
+| `存摺` | 累計打卡、連續打卡、本月打卡天數，以及今天打卡了沒 |
+| 其他訊息 | 不回，交給官方帳號原本的自動回應 |
+
+連續天數：今天還沒打卡時，從昨天往回算（還不算斷）；中間少一天就重新算。
+
+## 設定步驟
+
+1. **官方帳號開啟 Messaging API**：LINE Official Account Manager → 設定 → Messaging API → 啟用，
+   Provider 選「明善寺解惑」（跟打卡的 LINE Login 同一個，以後兩邊的 LINE ID 才對得上）。
+2. **LINE Developers** 打開這個 Messaging API channel：
+   - Basic settings → 複製 **Channel secret**
+   - Messaging API → Channel access token（long-lived）→ Issue，複製
+   - Webhook URL 填 `https://mingshan-bot-1.onrender.com/line/webhook`，按 Verify，打開 **Use webhook**
+3. **Render** 環境變數再加三個：
+
+| 變數 | 內容 |
+|---|---|
+| `LINE_CHANNEL_SECRET` | 上面的 Channel secret |
+| `LINE_CHANNEL_ACCESS_TOKEN` | 上面的 Channel access token |
+| `REPORT_KEY` | 自己編一串只有你知道的英數字（例如 20 個字），當作統計表的鑰匙 |
+
+4. **Apps Script**：貼上新版 `apps-script.gs` 後，「管理部署作業 → 編輯 → 新版本」再部署一次（網址不變）。
+   「信眾打卡」工作表第一次有人打卡時會自動建立，也可以重新執行一次 `setup`。
+5. **官方帳號回應設定**：「Webhook」要開；「自動回應訊息」可以保留，「打卡」「存摺」以外的訊息照舊由它回。
+
+## 每月統計表
+
+```
+https://mingshan-bot-1.onrender.com/line/report?key=<REPORT_KEY>
+```
+
+- 顯示當月每位信眾打卡天數、最近一次打卡、全寺總人次（每位信眾天數的加總），可切換上個月／下個月
+- 「下載 CSV」用 Excel 打開不會亂碼
+- 網址裡的 key 就是鑰匙：key 不對只會看到 Not Found。網址外流的話，改掉 Render 上的 `REPORT_KEY` 就好
