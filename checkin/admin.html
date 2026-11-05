@@ -85,7 +85,7 @@
       <div class="summary">
         <div><b>${people.length}</b><span>位義工</span></div>
         <div><b>${sum('yearPoints')}</b><span>${DATA.year} 年點數</span></div>
-        <div><b>${Math.round(sum('fuHours') + sum('huiHours'))}</b><span>累計時數</span></div>
+        <div><b>${sum('fu') + sum('hui')}</b><span>累計總點數</span></div>
       </div>
       <div class="tools">
         <input id="q" placeholder="搜尋名字">
@@ -123,7 +123,7 @@
           <div class="icon">${cur.icon}</div>
           <div class="mid">
             <div class="top"><b>${esc(p.name)}</b><span class="chip">${cur.name}</span></div>
-            <div class="sub">存福 ${p.fu}（${p.fuHours} 時）・存慧 ${p.hui}（${p.huiHours} 時）<br>最近：${p.last ? esc(p.last.replace(/-/g, '/')) : '尚未打卡'}</div>
+            <div class="sub">存福 ${p.fu}・存慧 ${p.hui}・今年 ${p.yearPoints} 點<br>最近：${p.last ? esc(p.last.replace(/-/g, '/')) : '尚未打卡'}</div>
           </div>
           <div class="pts"><b>${total}</b><span>點</span></div>
         </div>`;

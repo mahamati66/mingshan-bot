@@ -142,23 +142,17 @@
     return '晚安';
   }
 
-  function duration(min) {
-    const h = Math.floor(min / 60), m = min % 60;
-    if (h && m) return `${h} 小時 ${m} 分`;
-    if (h) return `${h} 小時`;
-    return `${m} 分鐘`;
-  }
-
   const WORDS = {
-    修福: {
-      arrive: ['感恩您今天來護持', '有您在，寺裡又多了一份溫暖', '今天也一起，把歡喜帶進寺裡'],
-      leave: ['辛苦了，願您福慧增長', '功德圓滿，回家路上平安', '把今天的歡喜，帶回家吧'],
-    },
-    修慧: {
-      arrive: ['歡迎來聞法，今天也一起增長智慧', '靜下心來，好好聽、好好想', '很高興今天又在這裡見到您'],
-      leave: ['願今天聽到的，能帶回生活裡', '法喜充滿，回家路上平安', '今天種下的智慧種子，會慢慢發芽'],
-    },
+    修福: ['感恩您今天來護持', '有您在，寺裡又多了一份溫暖', '今天也一起，把歡喜帶進寺裡'],
+    修慧: ['歡迎來聞法，今天也一起增長智慧', '靜下心來，好好聽、好好想', '很高興今天又在這裡見到您'],
   };
+
+  // 打卡後的小提醒：一天最多 2 點，第二次要隔 4 小時
+  function todayHint(n) {
+    return n >= 2
+      ? '今天的 2 點都存滿了，願您福慧增長'
+      : '隔 4 小時後的另一個時段再來，可以再存 1 點';
+  }
 
   function show(html) { view.innerHTML = html; }
 
@@ -204,6 +198,7 @@
     }
 
     const t = WORDS[data.type] ? data.type : '修福';
+    const plus = `${t === '修慧' ? '存慧' : '存福'} +1 點`;
     switch (data.status) {
       case 'needName': return askName(data.lineName);
       case 'needType': return askType(data.name);
@@ -216,31 +211,31 @@
             <h1>恭喜 ${esc(data.name)}<br>長成「${lv.cur.name}」</h1>
             <p>${lv.cur.desc}</p>
             <div class="tag">${t} · ${esc(data.spotLabel || '')}</div>
-            <div class="big" style="font-size:22px">${t === '修慧' ? '存慧' : '存福'} +1 點・累積 ${data.total} 點</div>
-            <p style="font-size:13px">要離開時，再碰一次貼紙就好</p>
+            <div class="big" style="font-size:22px">${plus}・累積 ${data.total} 點</div>
+            <p style="font-size:13px">${todayHint(data.today)}</p>
             <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
         }
         return show(`
           <div class="mark">🙏</div>
           <h1>${greeting()}，${esc(data.name)}</h1>
-          <p>${pick(WORDS[t].arrive)}</p>
+          <p>${pick(WORDS[t])}</p>
           <div class="tag">${t} · ${esc(data.spotLabel || '')}</div>
-          <p style="margin-top:18px">這是您今年第 ${data.count} 次來${t}</p>
-          <div class="big" style="font-size:22px">${t === '修慧' ? '存慧' : '存福'} +1 點</div>
-          <p style="font-size:13px">要離開時，再碰一次貼紙就好</p>
+          <div class="big" style="font-size:22px">${plus}</div>
+          <p>累積 ${data.total} 點・今年第 ${data.count} 次來${t}</p>
+          <p style="font-size:13px;margin-top:6px">${todayHint(data.today)}</p>
           <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
       }
-      case 'leave':
-        return show(`
-          <div class="mark">🙏</div>
-          <h1>${esc(data.name)}，${t === '修慧' ? '下課了' : '辛苦了'}</h1>
-          <p>今天${t === '修慧' ? '聞法' : '護持'}了</p>
-          <div class="big">${duration(data.minutes)}</div>
-          <p>${pick(WORDS[t].leave)}</p>
-          <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
-      case 'repeat':
-        return showMessage('🙏', '剛剛已經打過卡囉',
-          data.state === '圓滿' ? '今天已經圓滿，回家路上平安' : '要離開時再碰一次就好，不用急');
+      case 'tooSoon':
+        if (data.justNow) {
+          return showMessage('🙏', '剛剛已經打過卡囉', `${esc(data.lastAt)} 已經幫您記下，不用再碰了`);
+        }
+        return showMessage('🙏', `${esc(data.name)}，今天已經打過卡囉`,
+          `上一次是 ${esc(data.lastAt)}<br>` + (data.nextAt
+            ? `同一天要隔 4 小時，<b style="color:var(--green)">${esc(data.nextAt)}</b> 以後再碰，就能再存 1 點`
+            : '同一天要隔 4 小時才能再存，今天就先這樣，明天再來 🙏'));
+      case 'dailyMax':
+        return showMessage('🙏', `${esc(data.name)}，今天已經存滿囉`,
+          `今天 ${data.times.map(esc).join('、')} 各存了 1 點<br>一天最多 2 點，明天再來，願您法喜充滿`);
       default:
         return showMessage('・', '打卡沒有成功', '請再碰一次貼紙 🙏');
     }

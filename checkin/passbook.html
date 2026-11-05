@@ -95,7 +95,6 @@
   .stats div + div { border-left: 1px solid rgba(255, 248, 235, 0.12); }
   .stats b { display: block; font-size: 24px; font-weight: 600; }
   .stats span { display: block; font-size: 12px; opacity: 0.75; margin-top: 2px; letter-spacing: 0.08em; }
-  .stats em { display: block; font-style: normal; font-size: 11px; opacity: 0.55; margin-top: 2px; }
 
   /* 區塊 */
   .section { margin-top: 26px; }
@@ -153,13 +152,6 @@
   const CHECK = '<svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const LOCK = '<svg width="13" height="13" viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>';
 
-  function duration(min) {
-    if (min == null) return '';
-    const h = Math.floor(min / 60), m = min % 60;
-    if (h && m) return `${h} 時 ${m} 分`;
-    if (h) return `${h} 小時`;
-    return `${m} 分鐘`;
-  }
 
   function render(d, picture) {
     const total = d.fu + d.hui;
@@ -193,7 +185,7 @@
         <div class="item">
           <span class="chip ${r.type === '修慧' ? 'hui' : ''}">${r.type === '修慧' ? '存慧' : '存福'}</span>
           <div class="mid"><b style="font-weight:500">${esc(r.spot)}</b><div class="sub" style="margin:0">${esc(r.date.replace(/-/g, '/'))}</div></div>
-          <div class="dur">${duration(r.minutes)}</div>
+          <div class="dur">${esc(r.time || '')}</div>
         </div>`).join('')
       : `<div class="empty">存摺還是新的<br>下次來寺裡，記得碰一下貼紙 🙏</div>`;
 
@@ -221,9 +213,9 @@
           <div class="foot"><span>累積 ${total} 點</span><span>${next ? `還差 ${next.at - total} 點升級` : '金蓮常開'}</span></div>
         </div>
         <div class="stats">
-          <div><b>${total}</b><span>總點數</span><em>&nbsp;</em></div>
-          <div><b>${d.fu}</b><span>存福點數</span><em>${d.fuHours} 小時</em></div>
-          <div><b>${d.hui}</b><span>存慧點數</span><em>${d.huiHours} 小時</em></div>
+          <div><b>${total}</b><span>總點數</span></div>
+          <div><b>${d.fu}</b><span>存福點數</span></div>
+          <div><b>${d.hui}</b><span>存慧點數</span></div>
         </div>
       </div>
 
@@ -243,7 +235,7 @@
       </div>
 
       ${d.isAdmin ? `<a href="/checkin/admin" style="display:block;margin-top:22px;text-align:center;padding:14px;border-radius:14px;background:var(--green);color:#fff;text-decoration:none;letter-spacing:0.15em;font-size:15px">負責人：查看全部義工</a>` : ''}
-      <div class="foot-note">修福・發心工作　修慧・來上課聞法</div>`;
+      <div class="foot-note">來寺裡碰一下＋1 點・一天最多 2 點（隔 4 小時）</div>`;
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       app.querySelector('.bar i').style.width = Math.max(pct, total ? 4 : 0) + '%';
