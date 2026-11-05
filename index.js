@@ -183,5 +183,108 @@ async function postReply(commentId, message) {
   }
 }
 
+// =====================================================================
+// 義工打卡（NFC 貼紙 + LINE 登入）＋ 福慧存摺
+// 貼紙網址：https://liff.line.me/<LIFF_ID>?spot=xiangji
+// 存摺網址：https://liff.line.me/<LIFF_ID>/passbook
+// =====================================================================
+const LIFF_ID = process.env.LIFF_ID || '';
+const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID || '';
+const CHECKIN_SCRIPT_URL = process.env.CHECKIN_SCRIPT_URL || '';
+const CHECKIN_SECRET = process.env.CHECKIN_SECRET || '';
+
+// 三張貼紙：地點代號 → 顯示名稱、類別（type 留 null 代表讓義工自己選修福或修慧）
+const CHECKIN_SPOTS = {
+  xiangji: { label: '香積組', type: '修福' },
+  dadian:  { label: '大殿',   type: null },
+  zhike:   { label: '知客處', type: '修福' },
+};
+
+function loadPage(file) {
+  try {
+    return fs.readFileSync(path.join(__dirname, 'checkin', file), 'utf8')
+      .replace('__LIFF_ID__', LIFF_ID.replace(/[^\w-]/g, ''));
+  } catch (err) {
+    console.error(`讀取 checkin/${file} 失敗:`, err);
+    return '';
+  }
+}
+const CHECKIN_PAGE = loadPage('checkin.html');
+const PASSBOOK_PAGE = loadPage('passbook.html');
+
+app.get('/checkin', (req, res) => res.type('html').send(CHECKIN_PAGE));
+app.get('/checkin/passbook', (req, res) => res.type('html').send(PASSBOOK_PAGE));
+
+// 向 LINE 確認這個人真的是用 LINE 登入的，回傳 { userId, lineName }
+async function verifyLineUser(idToken) {
+  if (!idToken) return null;
+  const response = await fetch('https://api.line.me/oauth2/v2.1/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ id_token: idToken, client_id: LINE_LOGIN_CHANNEL_ID }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.sub) {
+    console.warn('LINE 身分驗證失敗:', data.error_description || data.error || response.status);
+    return null;
+  }
+  return { userId: data.sub, lineName: data.name || '' };
+}
+
+// 把資料交給 Google Apps Script（寫進試算表）
+async function callCheckinScript(payload) {
+  const response = await fetch(CHECKIN_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ secret: CHECKIN_SECRET }, payload)),
+  });
+  return response.json();
+}
+
+function checkinConfigured(res) {
+  if (LIFF_ID && LINE_LOGIN_CHANNEL_ID && CHECKIN_SCRIPT_URL && CHECKIN_SECRET) return true;
+  console.error('打卡功能尚未設定完成：請設定 LIFF_ID、LINE_LOGIN_CHANNEL_ID、CHECKIN_SCRIPT_URL、CHECKIN_SECRET');
+  res.status(500).json({ ok: false, error: 'not_configured' });
+  return false;
+}
+
+app.post('/checkin/api', async (req, res) => {
+  if (!checkinConfigured(res)) return;
+  const { idToken, spot, name, type } = req.body || {};
+  const spotInfo = CHECKIN_SPOTS[spot];
+  if (!spotInfo) return res.json({ ok: false, error: 'bad_spot' });
+
+  try {
+    const user = await verifyLineUser(idToken);
+    if (!user) return res.status(401).json({ ok: false, error: 'relogin' });
+
+    const result = await callCheckinScript({
+      userId: user.userId,
+      lineName: user.lineName,
+      spot: spotInfo.label,
+      spotType: spotInfo.type,
+      name: typeof name === 'string' ? name.trim().slice(0, 20) : '',
+      type: type === '修福' || type === '修慧' ? type : '',
+    });
+    console.log('打卡：', spotInfo.label, result.status, result.name || '');
+    res.json(Object.assign({ spotLabel: spotInfo.label }, result));
+  } catch (err) {
+    console.error('打卡失敗:', err);
+    res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
+app.post('/checkin/passbook/api', async (req, res) => {
+  if (!checkinConfigured(res)) return;
+  try {
+    const user = await verifyLineUser((req.body || {}).idToken);
+    if (!user) return res.status(401).json({ ok: false, error: 'relogin' });
+    res.json(await callCheckinScript({ action: 'passbook', userId: user.userId }));
+  } catch (err) {
+    console.error('讀取福慧存摺失敗:', err);
+    res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`明善寺小助手運行中，Port: ${PORT}`));

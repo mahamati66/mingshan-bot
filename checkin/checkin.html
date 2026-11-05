@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>明善寺 · 輕碰護持</title>
+<style>
+  :root {
+    --bg: #f6f2ea;
+    --card: #fffdf8;
+    --ink: #2f2a24;
+    --muted: #8a8174;
+    --green: #3d5a45;
+    --green-soft: #e4ebe3;
+    --gold: #b08d57;
+    --tea: #d9c8ad;
+    --line: #e7dfd1;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    width: 100%;
+    max-width: 380px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 44px 28px 36px;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(80, 60, 30, 0.06);
+  }
+  .brand {
+    font-size: 13px;
+    letter-spacing: 0.35em;
+    color: var(--gold);
+    margin-bottom: 28px;
+  }
+  .mark {
+    width: 64px; height: 64px;
+    margin: 0 auto 24px;
+    border-radius: 50%;
+    border: 1.5px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--green);
+    font-size: 26px;
+  }
+  .spin { border-color: var(--tea); border-top-color: var(--green); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 12px; line-height: 1.5; }
+  p { margin: 0; line-height: 1.9; color: var(--muted); font-size: 15px; }
+  .tag {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--green-soft);
+    color: var(--green);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+  }
+  .big { font-size: 34px; color: var(--green); font-weight: 600; margin: 18px 0 4px; letter-spacing: 0.05em; }
+  input {
+    width: 100%;
+    margin: 24px 0 14px;
+    padding: 14px 16px;
+    font-size: 18px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--ink);
+    text-align: center;
+    outline: none;
+  }
+  input:focus { border-color: var(--green); }
+  button {
+    width: 100%;
+    padding: 15px;
+    font-size: 17px;
+    border: none;
+    border-radius: 12px;
+    background: var(--green);
+    color: #fff;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; }
+  .choices { display: grid; gap: 12px; margin-top: 24px; }
+  .choice {
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 18px 16px;
+    text-align: left;
+    letter-spacing: 0;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .choice b { font-size: 19px; color: var(--green); letter-spacing: 0.1em; }
+  .choice span { font-size: 14px; color: var(--muted); }
+  .foot { margin-top: 32px; font-size: 12px; color: var(--tea); letter-spacing: 0.2em; }
+  .link {
+    display: inline-block;
+    margin-top: 24px;
+    color: var(--gold);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    text-decoration: none;
+    border-bottom: 1px solid var(--tea);
+    padding-bottom: 2px;
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">竹山 明善寺</div>
+  <div id="view"></div>
+  <div class="foot">每一次發心，寺裡都記得</div>
+</main>
+
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+  const LIFF_ID = '__LIFF_ID__';
+  const view = document.getElementById('view');
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function greeting() {
+    const h = new Date().getHours();
+    if (h < 11) return '早安';
+    if (h < 18) return '午安';
+    return '晚安';
+  }
+
+  function duration(min) {
+    const h = Math.floor(min / 60), m = min % 60;
+    if (h && m) return `${h} 小時 ${m} 分`;
+    if (h) return `${h} 小時`;
+    return `${m} 分鐘`;
+  }
+
+  const WORDS = {
+    修福: {
+      arrive: ['感恩您今天來護持', '有您在，寺裡又多了一份溫暖', '今天也一起，把歡喜帶進寺裡'],
+      leave: ['辛苦了，願您福慧增長', '功德圓滿，回家路上平安', '把今天的歡喜，帶回家吧'],
+    },
+    修慧: {
+      arrive: ['歡迎來聞法，今天也一起增長智慧', '靜下心來，好好聽、好好想', '很高興今天又在這裡見到您'],
+      leave: ['願今天聽到的，能帶回生活裡', '法喜充滿，回家路上平安', '今天種下的智慧種子，會慢慢發芽'],
+    },
+  };
+
+  function show(html) { view.innerHTML = html; }
+
+  function showLoading(text) {
+    show(`<div class="mark spin"></div><p>${text}</p>`);
+  }
+
+  function showMessage(icon, title, body) {
+    show(`<div class="mark">${icon}</div><h1>${title}</h1><p>${body}</p>`);
+  }
+
+  let spot = '';
+  let pending = {};
+
+  async function send(extra) {
+    pending = Object.assign(pending, extra || {});
+    showLoading('感應中⋯');
+    let res, data;
+    try {
+      res = await fetch('/checkin/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ idToken: liff.getIDToken(), spot }, pending)),
+      });
+      data = await res.json();
+    } catch (err) {
+      return showMessage('・', '網路好像不太順', '請稍等一下，再碰一次貼紙 🙏');
+    }
+
+    // LINE 登入過期：重新登入一次（只試一次，避免一直轉圈）
+    if (data.error === 'relogin' && !sessionStorage.getItem('relogged')) {
+      sessionStorage.setItem('relogged', '1');
+      liff.logout();
+      return liff.login({ redirectUri: location.href });
+    }
+    sessionStorage.removeItem('relogged');
+
+    if (!data.ok) {
+      if (data.error === 'bad_spot') {
+        return showMessage('・', '這張貼紙還沒設定好', '請告訴知客處的師父，謝謝您 🙏');
+      }
+      return showMessage('・', '打卡沒有成功', '請再碰一次貼紙；如果還是不行，請告訴知客處的師父 🙏');
+    }
+
+    const t = WORDS[data.type] ? data.type : '修福';
+    switch (data.status) {
+      case 'needName': return askName(data.lineName);
+      case 'needType': return askType(data.name);
+      case 'arrive':
+        return show(`
+          <div class="mark">🙏</div>
+          <h1>${greeting()}，${esc(data.name)}</h1>
+          <p>${pick(WORDS[t].arrive)}</p>
+          <div class="tag">${t} · ${esc(data.spotLabel || '')}</div>
+          <p style="margin-top:18px">這是您今年第 ${data.count} 次來${t}</p>
+          <div class="big" style="font-size:22px">${t === '修慧' ? '存慧' : '存福'} +1 點</div>
+          <p style="font-size:13px">要離開時，再碰一次貼紙就好</p>
+          <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
+      case 'leave':
+        return show(`
+          <div class="mark">🙏</div>
+          <h1>${esc(data.name)}，${t === '修慧' ? '下課了' : '辛苦了'}</h1>
+          <p>今天${t === '修慧' ? '聞法' : '護持'}了</p>
+          <div class="big">${duration(data.minutes)}</div>
+          <p>${pick(WORDS[t].leave)}</p>
+          <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
+      case 'repeat':
+        return showMessage('🙏', '剛剛已經打過卡囉',
+          data.state === '圓滿' ? '今天已經圓滿，回家路上平安' : '要離開時再碰一次就好，不用急');
+      default:
+        return showMessage('・', '打卡沒有成功', '請再碰一次貼紙 🙏');
+    }
+  }
+
+  function askName(lineName) {
+    show(`
+      <div class="mark">🌿</div>
+      <h1>第一次來，歡迎您</h1>
+      <p>請留下寺裡大家認得的名字<br>之後碰一下就會認得您了</p>
+      <input id="name" maxlength="20" placeholder="例如：陳美玉" value="">
+      <button id="ok">登記</button>`);
+    const input = document.getElementById('name');
+    const ok = document.getElementById('ok');
+    input.placeholder = lineName ? `例如：${lineName}` : '例如：陳美玉';
+    ok.onclick = () => {
+      const name = input.value.trim();
+      if (!name) return input.focus();
+      ok.disabled = true;
+      send({ name });
+    };
+  }
+
+  function askType(name) {
+    show(`
+      <div class="mark">🙏</div>
+      <h1>${greeting()}，${esc(name)}</h1>
+      <p>今天來寺裡是⋯</p>
+      <div class="choices">
+        <button class="choice" data-type="修福"><b>修福</b><span>發心工作、護持服務</span></button>
+        <button class="choice" data-type="修慧"><b>修慧</b><span>來上課、共修聞法</span></button>
+      </div>`);
+    view.querySelectorAll('.choice').forEach(b => {
+      b.onclick = () => send({ type: b.dataset.type });
+    });
+  }
+
+  (async function start() {
+    showLoading('感應中⋯');
+    try {
+      await liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser: true });
+    } catch (err) {
+      return showMessage('・', '暫時無法開啟', '請確認手機有連上網路，再碰一次貼紙 🙏');
+    }
+    if (!liff.isLoggedIn()) return liff.login({ redirectUri: location.href });
+    spot = new URLSearchParams(location.search).get('spot') || '';
+    send();
+  })();
+</script>
+</body>
+</html>
