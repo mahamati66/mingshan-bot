@@ -4,6 +4,7 @@
  * 試算表會有三個工作表：
  *   打卡紀錄：每一次碰貼紙的紀錄
  *   義工名冊：LINE 帳號 ↔ 名字（名字要改，直接改這裡）
+ *            「權限」欄填「負責人」，這個人就能在 LINE 看全部義工的點數
  *   護持統計：自動加總每個人的修福、修慧次數與時數
  *
  * 第一次使用：把 SECRET 改掉 → 執行一次 setup() → 部署成「網頁應用程式」。
@@ -14,10 +15,13 @@ const SECRET = '請改成一組只有你知道的密碼';
 const TZ = 'Asia/Taipei';
 // 幾分鐘內重複碰，視為不小心多碰一下，不另外記錄
 const REPEAT_MINUTES = 3;
+// 到寺後幾小時內再碰算圓滿；超過就當作忘了碰圓滿，這次算新的到寺
+const MAX_STAY_HOURS = 12;
 
 const LOG = '打卡紀錄';
 const ROSTER = '義工名冊';
 const STATS = '護持統計';
+const EVENTS = '活動行事曆';
 const TYPES = ['修福', '修慧'];
 
 function setup() {
@@ -31,7 +35,7 @@ function setup() {
   log.hideColumns(8);
 
   const roster = ss.getSheetByName(ROSTER) || ss.insertSheet(ROSTER);
-  roster.getRange(1, 1, 1, 4).setValues([['LINE ID', '姓名', 'LINE 名稱', '登記時間']]);
+  roster.getRange(1, 1, 1, 5).setValues([['LINE ID', '姓名', 'LINE 名稱', '登記時間', '權限']]);
   roster.setFrozenRows(1);
   roster.getRange('D:D').setNumberFormat('yyyy/mm/dd hh:mm');
 
@@ -44,6 +48,22 @@ function setup() {
   stats.getRange('E2').setFormula(
     `=IFERROR(QUERY('${LOG}'!A2:G, "select C, count(C), sum(G) where E = '修慧' and F = '圓滿' group by C order by sum(G) desc label C '姓名', count(C) '次數', sum(G) '時數'", 0), "尚無紀錄")`);
   stats.getRange('A1:E1').setFontWeight('bold');
+
+  // 活動行事曆：福慧存摺的「本月重點活動」從這裡讀，每月由知客處更新
+  let events = ss.getSheetByName(EVENTS);
+  if (!events) {
+    events = ss.insertSheet(EVENTS);
+    events.getRange('A:A').setNumberFormat('@');  // 月份存成文字
+    events.getRange(1, 1, 1, 6).setValues([['月份', '活動', '類別', '日期', '時間', '圖示']]);
+    events.getRange(2, 1, 4, 6).setValues([
+      ['2026-11', '大悲懺法會', '修慧', '1日', '14:30-17:00', '🏮'],
+      ['2026-11', '中午值班', '修福', '每天', '13:00-15:30', '✨'],
+      ['2026-11', '佛學班', '修慧', '每週五（6、13、20、27日）', '19:30-21:00', '📖'],
+      ['2026-11', '環保組服務', '修福', '3、7、10、14日', '07:00-08:00', '🌿'],
+    ]);
+    events.setFrozenRows(1);
+    events.getRange('A1:F1').setFontWeight('bold');
+  }
 }
 
 function doPost(e) {
@@ -58,7 +78,8 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
-    return json(req.action === 'passbook' ? passbook(req) : handle(req));
+    const fn = { passbook: passbook, admin: admin }[req.action] || handle;
+    return json(fn(req));
   } finally {
     lock.releaseLock();
   }
@@ -89,10 +110,12 @@ function handle(req) {
   const rows = log.getLastRow() > 1 ? log.getRange(2, 1, log.getLastRow() - 1, 8).getValues() : [];
   let last = null;
   const yearCount = { 修福: 0, 修慧: 0 };
+  let totalCount = 0;
   for (let i = rows.length - 1; i >= 0; i--) {
     const r = rows[i];
     if (r[7] !== req.userId) continue;
     if (!last) last = r;
+    if (r[5] === '到寺' && TYPES.indexOf(r[4]) >= 0) totalCount++;
     if (String(r[1]).slice(0, 4) === year && r[5] === '到寺' && yearCount[r[4]] !== undefined) {
       yearCount[r[4]]++;
     }
@@ -103,8 +126,8 @@ function handle(req) {
     return { ok: true, status: 'repeat', name: name, state: last[5], type: last[4] };
   }
 
-  // 4. 今天已經到寺、還沒圓滿 → 這次是圓滿（類別跟著到寺時的類別）
-  if (last && String(last[1]) === today && last[5] === '到寺') {
+  // 4. 12 小時內有到寺、還沒圓滿 → 這次是圓滿（類別跟著到寺時的類別；跨午夜也算）
+  if (last && last[5] === '到寺' && now - new Date(last[0]) < MAX_STAY_HOURS * 3600 * 1000) {
     const minutes = Math.round((now - new Date(last[0])) / 60000);
     const hours = Math.round(minutes / 60 * 100) / 100;
     log.appendRow([now, today, name, req.spot, last[4], '圓滿', hours, req.userId]);
@@ -118,7 +141,7 @@ function handle(req) {
   if (!type) return { ok: true, status: 'needType', name: name };
 
   log.appendRow([now, today, name, req.spot, type, '到寺', '', req.userId]);
-  return { ok: true, status: 'arrive', name: name, type: type, count: yearCount[type] + 1 };
+  return { ok: true, status: 'arrive', name: name, type: type, count: yearCount[type] + 1, total: totalCount + 1 };
 }
 
 /**
@@ -127,8 +150,9 @@ function handle(req) {
  */
 function passbook(req) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const name = findName(ss.getSheetByName(ROSTER), req.userId);
-  if (!name) return { ok: true, status: 'notRegistered' };
+  const person = findPerson(ss.getSheetByName(ROSTER), req.userId);
+  if (!person) return { ok: true, status: 'notRegistered' };
+  const name = person.name;
 
   const log = ss.getSheetByName(LOG);
   const rows = log.getLastRow() > 1 ? log.getRange(2, 1, log.getLastRow() - 1, 8).getValues() : [];
@@ -143,7 +167,7 @@ function passbook(req) {
     } else if (r[5] === '圓滿') {
       hours[r[4]] += Number(r[6]) || 0;
       const v = visits[visits.length - 1];
-      if (v && v.date === String(r[1]) && v.minutes === null) v.minutes = Math.round((Number(r[6]) || 0) * 60);
+      if (v && v.minutes === null) v.minutes = Math.round((Number(r[6]) || 0) * 60);
     }
   }
   const recent = visits.slice(-10).reverse();
@@ -157,7 +181,60 @@ function passbook(req) {
     fuHours: Math.round(hours['修福'] * 10) / 10,
     huiHours: Math.round(hours['修慧'] * 10) / 10,
     recent: recent,
+    events: monthEvents(ss),
+    isAdmin: person.role === '負責人',
   };
+}
+
+/**
+ * 負責人總覽：全部義工的點數（只有名冊「權限」欄是「負責人」的人能看）
+ * req: { userId }
+ */
+function admin(req) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = ss.getSheetByName(ROSTER);
+  const me = findPerson(roster, req.userId);
+  if (!me || me.role !== '負責人') return { ok: false, error: 'forbidden' };
+
+  const people = {};
+  if (roster.getLastRow() > 1) {
+    roster.getRange(2, 1, roster.getLastRow() - 1, 2).getValues().forEach(r => {
+      if (r[0] && r[1]) people[r[0]] = { name: String(r[1]), fu: 0, hui: 0, fuHours: 0, huiHours: 0, yearPoints: 0, last: '' };
+    });
+  }
+  const year = Utilities.formatDate(new Date(), TZ, 'yyyy');
+  const log = ss.getSheetByName(LOG);
+  const rows = log.getLastRow() > 1 ? log.getRange(2, 1, log.getLastRow() - 1, 8).getValues() : [];
+  for (const r of rows) {
+    const p = people[r[7]];
+    if (!p || TYPES.indexOf(r[4]) < 0) continue;
+    const date = String(r[1]);
+    if (r[5] === '到寺') {
+      if (r[4] === '修福') p.fu++; else p.hui++;
+      if (date.slice(0, 4) === year) p.yearPoints++;
+      if (date > p.last) p.last = date;
+    } else if (r[5] === '圓滿') {
+      const h = Number(r[6]) || 0;
+      if (r[4] === '修福') p.fuHours += h; else p.huiHours += h;
+    }
+  }
+  const r1 = n => Math.round(n * 10) / 10;
+  const list = Object.values(people).map(p => Object.assign(p, { fuHours: r1(p.fuHours), huiHours: r1(p.huiHours) }))
+    .sort((a, b) => (b.fu + b.hui) - (a.fu + a.hui));
+  return { ok: true, status: 'admin', year: year, people: list };
+}
+
+// 本月重點活動（活動行事曆中「月份」等於這個月的）
+function monthEvents(ss) {
+  const sheet = ss.getSheetByName(EVENTS);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const month = Utilities.formatDate(new Date(), TZ, 'yyyy-MM');
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues()
+    .filter(r => {
+      const m = r[0] instanceof Date ? Utilities.formatDate(r[0], TZ, 'yyyy-MM') : String(r[0]).trim().replace('/', '-');
+      return m === month && r[1];
+    })
+    .map(r => ({ name: String(r[1]), type: String(r[2]), days: String(r[3]), time: String(r[4]), icon: String(r[5] || '') }));
 }
 
 // 打開試算表時，上方多一個「明善寺」選單
@@ -250,11 +327,18 @@ function yearReport(year) {
   ss.setActiveSheet(sheet);
 }
 
-function findName(roster, userId) {
+function findPerson(roster, userId) {
   if (roster.getLastRow() < 2) return null;
-  const rows = roster.getRange(2, 1, roster.getLastRow() - 1, 2).getValues();
-  for (const r of rows) if (r[0] === userId && r[1]) return String(r[1]);
+  const rows = roster.getRange(2, 1, roster.getLastRow() - 1, 5).getValues();
+  for (const r of rows) {
+    if (r[0] === userId && r[1]) return { name: String(r[1]), role: String(r[4] || '').trim() };
+  }
   return null;
+}
+
+function findName(roster, userId) {
+  const p = findPerson(roster, userId);
+  return p ? p.name : null;
 }
 
 function json(obj) {

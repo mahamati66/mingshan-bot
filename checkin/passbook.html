@@ -14,6 +14,7 @@
     --green-soft: #e4ebe3;
     --gold: #b08d57;
     --gold-deep: #8f6c3c;
+    --gold-soft: #f3e8d4;
     --tea: #d9c8ad;
     --line: #e7dfd1;
   }
@@ -28,92 +29,110 @@
   }
   header {
     display: flex; align-items: center; gap: 10px;
-    padding: 18px 20px;
+    padding: 16px 20px;
     background: var(--card);
     border-bottom: 1px solid var(--line);
   }
   header .seal {
-    width: 34px; height: 34px; border-radius: 50%;
+    width: 32px; height: 32px; border-radius: 50%;
     border: 1.5px solid var(--gold);
     display: flex; align-items: center; justify-content: center;
-    color: var(--gold-deep); font-size: 15px; font-weight: 600;
+    color: var(--gold-deep); font-size: 14px; font-weight: 600;
   }
-  header h1 { font-size: 18px; margin: 0; letter-spacing: 0.12em; font-weight: 600; }
-  .wrap { max-width: 440px; margin: 0 auto; padding: 20px 16px; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: 0.12em; font-weight: 600; }
+  .wrap { max-width: 440px; margin: 0 auto; padding: 18px 16px; }
+  svg { display: block; }
 
-  .book {
-    position: relative;
-    border-radius: 22px;
-    padding: 24px 22px 22px;
-    color: #fffaf0;
-    background: linear-gradient(135deg, #c8a46a 0%, #a9834c 55%, #8a6a3d 100%);
-    box-shadow: 0 14px 36px rgba(120, 90, 40, 0.22);
+  /* 個人卡 */
+  .me {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 18px; padding: 16px 18px;
+  }
+  .avatar {
+    flex: none; width: 64px; height: 64px; border-radius: 50%;
+    border: 2.5px solid #e9c97f; background: #fbf3e2; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar svg { width: 40px; height: 40px; }
+  .me b { display: block; font-size: 18px; font-weight: 600; }
+  .me .chip { margin-top: 6px; }
+  .chip {
+    display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px;
+    letter-spacing: 0.08em; background: var(--gold-soft); color: var(--gold-deep);
+  }
+  .chip.hui { background: var(--green-soft); color: var(--green); }
+
+  /* 蓮花等級卡 */
+  .level {
+    margin-top: 14px;
+    border-radius: 20px;
+    color: #fbf5ec;
+    background: linear-gradient(140deg, #8c7262 0%, #6f5747 60%, #5e4a3d 100%);
+    box-shadow: 0 14px 34px rgba(90, 65, 45, 0.22);
     overflow: hidden;
   }
-  .book::after {
-    content: ""; position: absolute; right: -60px; top: -60px;
-    width: 200px; height: 200px; border-radius: 50%;
-    background: rgba(255, 250, 235, 0.08);
-  }
-  .book .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  .book .label { font-size: 13px; opacity: 0.8; letter-spacing: 0.15em; }
-  .book .title { font-size: 28px; font-weight: 600; letter-spacing: 0.12em; margin: 4px 0 2px; }
-  .book .who { font-size: 15px; opacity: 0.85; }
-  .plant {
-    flex: none;
-    width: 82px; height: 82px; border-radius: 50%;
-    background: #fbf3e2;
-    border: 4px solid rgba(255, 236, 190, 0.85);
+  .level .head { display: flex; align-items: center; gap: 18px; padding: 22px 20px 6px; }
+  .level .lotus {
+    flex: none; width: 108px; height: 108px; border-radius: 50%;
+    background: #fbf3e2; border: 4px solid #e9c97f;
     display: flex; align-items: center; justify-content: center;
-    position: relative; z-index: 1;
   }
-  .plant svg { width: 58px; height: 58px; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0 20px; }
-  .stat {
-    background: rgba(255, 250, 235, 0.16);
-    border-radius: 14px;
-    padding: 12px 6px;
-    text-align: center;
-  }
-  .stat small { display: block; font-size: 12px; opacity: 0.85; letter-spacing: 0.1em; }
-  .stat b { display: block; font-size: 28px; font-weight: 600; margin-top: 4px; }
-  .stat em { display: block; font-style: normal; font-size: 11px; opacity: 0.75; margin-top: 2px; }
-  .level { display: flex; justify-content: space-between; font-size: 14px; }
-  .level span:first-child { font-weight: 600; letter-spacing: 0.08em; }
-  .level span:last-child { opacity: 0.85; }
-  .bar { height: 10px; border-radius: 999px; background: rgba(255, 250, 235, 0.25); margin: 10px 0 8px; overflow: hidden; }
-  .bar i { display: block; height: 100%; border-radius: 999px; background: #fffaf0; transition: width 0.8s ease; }
-  .level-foot { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.8; }
+  .level .lotus svg { width: 72px; height: 72px; }
+  .level small { font-size: 13px; opacity: 0.75; letter-spacing: 0.12em; }
+  .level h2 { font-size: 24px; margin: 4px 0 6px; letter-spacing: 0.12em; font-weight: 600; }
+  .level .desc { font-size: 13px; opacity: 0.85; letter-spacing: 0.05em; }
+  .progress { padding: 14px 20px 18px; }
+  .progress .row { display: flex; justify-content: space-between; font-size: 14px; }
+  .progress .row span:first-child { font-weight: 600; letter-spacing: 0.06em; }
+  .progress .row span:last-child { opacity: 0.8; }
+  .bar { height: 9px; border-radius: 999px; background: rgba(255, 248, 235, 0.22); margin: 10px 0 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; border-radius: 999px; background: #fbf5ec; transition: width 0.9s ease; }
+  .progress .foot { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.75; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(0, 0, 0, 0.12); }
+  .stats div { text-align: center; padding: 14px 4px 16px; }
+  .stats div + div { border-left: 1px solid rgba(255, 248, 235, 0.12); }
+  .stats b { display: block; font-size: 24px; font-weight: 600; }
+  .stats span { display: block; font-size: 12px; opacity: 0.75; margin-top: 2px; letter-spacing: 0.08em; }
+  .stats em { display: block; font-style: normal; font-size: 11px; opacity: 0.55; margin-top: 2px; }
 
-  .section { margin-top: 28px; }
-  .section h2 { font-size: 15px; letter-spacing: 0.15em; color: var(--gold-deep); margin: 0 0 12px 4px; font-weight: 600; }
+  /* 區塊 */
+  .section { margin-top: 26px; }
+  .section h3 { font-size: 15px; letter-spacing: 0.15em; color: var(--gold-deep); margin: 0 0 12px 4px; font-weight: 600; }
   .list { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-  .row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); }
-  .row:first-child { border-top: none; }
-  .chip { flex: none; font-size: 12px; padding: 4px 10px; border-radius: 999px; letter-spacing: 0.08em; }
-  .chip.fu { background: #f3e8d4; color: var(--gold-deep); }
-  .chip.hui { background: var(--green-soft); color: var(--green); }
-  .row .mid { flex: 1; min-width: 0; }
-  .row .mid b { display: block; font-size: 15px; font-weight: 500; }
-  .row .mid span { font-size: 12px; color: var(--muted); }
-  .row .dur { font-size: 13px; color: var(--muted); white-space: nowrap; }
-  .empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.8; }
+  .item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: none; }
+  .item .mid { flex: 1; min-width: 0; }
+  .item .title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item .title b { font-size: 15px; font-weight: 600; }
+  .item .sub { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.6; }
+  .icon-box {
+    flex: none; width: 44px; height: 44px; border-radius: 12px;
+    background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .icon-box svg { width: 32px; height: 32px; }
+  .empty { padding: 26px 16px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.8; }
 
-  .ladder { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
-  .ladder div { font-size: 11px; color: var(--muted); line-height: 1.5; }
-  .ladder div b { display: block; margin: 0 auto 4px; width: 40px; height: 40px; filter: grayscale(1); opacity: 0.35; }
-  .ladder div b svg { width: 40px; height: 40px; }
-  .ladder div.on b { filter: none; opacity: 1; }
-  .ladder div.on { color: var(--ink); }
+  /* 等級系統 */
+  .lv.now { background: #fbf6ec; }
+  .lv.now .title b { color: var(--gold-deep); }
+  .lv.locked .icon-box svg { filter: grayscale(1); opacity: 0.35; }
+  .lv.locked .title b { color: var(--muted); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--gold); color: #fff; letter-spacing: 0.08em; }
+  .state { flex: none; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .state.ok { background: var(--green-soft); color: var(--green); }
+  .state.lock { background: #f0ebe2; color: #b5a993; }
 
+  .dur { font-size: 13px; color: var(--muted); white-space: nowrap; }
   .center { text-align: center; padding: 80px 24px; color: var(--muted); line-height: 1.9; }
-  .center .mark {
-    width: 56px; height: 56px; margin: 0 auto 20px; border-radius: 50%;
+  .center .spin {
+    width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%;
     border: 1.5px solid var(--tea); border-top-color: var(--green);
     animation: spin 1s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .foot { text-align: center; margin-top: 28px; font-size: 12px; color: var(--tea); letter-spacing: 0.2em; }
+  .foot-note { text-align: center; margin-top: 28px; font-size: 12px; color: var(--tea); letter-spacing: 0.2em; }
 </style>
 </head>
 <body>
@@ -122,45 +141,17 @@
   <h1>明善寺福慧存摺</h1>
 </header>
 <div class="wrap" id="app">
-  <div class="center"><div class="mark"></div>翻開存摺中⋯</div>
+  <div class="center"><div class="spin"></div>翻開存摺中⋯</div>
 </div>
 
+<script src="/checkin/lotus.js"></script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
   const LIFF_ID = '__LIFF_ID__';
   const app = document.getElementById('app');
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-  // 蓮花成長的階段：每 50 點換一次圖，最後開成一朵蓮花（要改門檻，改 at 就好）
-  const STEM = '#5f7f5a', LEAF = '#7d9b6e', PETAL = '#f2c7c0', PETAL_DEEP = '#e3a39b', SEED = '#a07a4a';
-  const ICON = {
-    seed: `<svg viewBox="0 0 64 64"><ellipse cx="32" cy="48" rx="18" ry="5" fill="#e9dcc3"/>
-      <ellipse cx="32" cy="42" rx="9" ry="7" fill="${SEED}"/>
-      <path d="M32 36 C32 30 34 26 38 24" stroke="${STEM}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <path d="M38 24 C44 22 46 26 42 29 C39 31 37 28 38 24Z" fill="${LEAF}"/></svg>`,
-    sprout: `<svg viewBox="0 0 64 64"><ellipse cx="32" cy="52" rx="22" ry="5" fill="#e9dcc3"/>
-      <path d="M32 52 C32 40 32 30 33 20" stroke="${STEM}" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M33 30 C22 22 12 26 12 32 C20 36 28 34 33 30Z" fill="${LEAF}"/>
-      <path d="M33 22 C40 12 52 14 52 20 C46 26 38 26 33 22Z" fill="${LEAF}"/></svg>`,
-    bud: `<svg viewBox="0 0 64 64"><ellipse cx="32" cy="55" rx="22" ry="5" fill="#e9dcc3"/>
-      <path d="M32 55 C32 44 32 36 32 28" stroke="${STEM}" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M32 46 C22 40 10 44 10 50 C18 54 28 52 32 46Z" fill="${LEAF}"/>
-      <path d="M32 30 C22 24 24 12 32 6 C40 12 42 24 32 30Z" fill="${PETAL}"/>
-      <path d="M32 30 C27 24 28 14 32 9 C36 14 37 24 32 30Z" fill="${PETAL_DEEP}"/></svg>`,
-    bloom: `<svg viewBox="0 0 64 64"><ellipse cx="32" cy="54" rx="24" ry="5" fill="#e9dcc3"/>
-      <path d="M32 46 C18 46 6 40 4 32 C14 30 26 36 32 46Z" fill="${PETAL}"/>
-      <path d="M32 46 C46 46 58 40 60 32 C50 30 38 36 32 46Z" fill="${PETAL}"/>
-      <path d="M32 46 C20 42 12 30 14 18 C24 22 30 34 32 46Z" fill="${PETAL_DEEP}"/>
-      <path d="M32 46 C44 42 52 30 50 18 C40 22 34 34 32 46Z" fill="${PETAL_DEEP}"/>
-      <path d="M32 46 C24 36 24 20 32 8 C40 20 40 36 32 46Z" fill="${PETAL}"/>
-      <circle cx="32" cy="40" r="3.5" fill="#e6b85c"/></svg>`,
-  };
-  const LEVELS = [
-    { at: 0,   name: '蓮花種子', icon: ICON.seed },
-    { at: 50,  name: '蓮花苗',   icon: ICON.sprout },
-    { at: 100, name: '含苞待放', icon: ICON.bud },
-    { at: 150, name: '蓮花盛開', icon: ICON.bloom },
-  ];
+  const CHECK = '<svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const LOCK = '<svg width="13" height="13" viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>';
 
   function duration(min) {
     if (min == null) return '';
@@ -170,66 +161,93 @@
     return `${m} 分鐘`;
   }
 
-  function render(d) {
+  function render(d, picture) {
     const total = d.fu + d.hui;
-    let idx = 0;
-    LEVELS.forEach((l, i) => { if (total >= l.at) idx = i; });
-    const cur = LEVELS[idx], next = LEVELS[idx + 1];
+    const { idx, cur, next } = lotusLevel(total);
     const pct = next ? Math.round((total - cur.at) / (next.at - cur.at) * 100) : 100;
+    const typeChip = t => `<span class="chip ${t === '修慧' ? 'hui' : ''}">${esc(t)}</span>`;
 
-    const rows = d.recent.length ? d.recent.map(r => `
-      <div class="row">
-        <span class="chip ${r.type === '修慧' ? 'hui' : 'fu'}">${r.type === '修慧' ? '存慧' : '存福'}</span>
-        <div class="mid"><b>${esc(r.spot)}</b><span>${esc(r.date.replace(/-/g, '/'))}</span></div>
-        <div class="dur">${duration(r.minutes)}</div>
-      </div>`).join('')
+    const events = (d.events || []).length
+      ? d.events.map(e => `
+        <div class="item">
+          <div class="icon-box">${esc(e.icon || '・')}</div>
+          <div class="mid">
+            <div class="title"><b>${esc(e.name)}</b>${e.type ? typeChip(e.type) : ''}</div>
+            <div class="sub">${esc(e.days)}${e.time ? `　${esc(e.time)}` : ''}</div>
+          </div>
+        </div>`).join('')
+      : `<div class="empty">本月活動整理中，敬請期待 🙏</div>`;
+
+    const levels = LOTUS_LEVELS.map((l, i) => `
+      <div class="item lv ${i === idx ? 'now' : ''} ${i > idx ? 'locked' : ''}">
+        <div class="icon-box">${l.icon}</div>
+        <div class="mid">
+          <div class="title"><b>${l.name}</b>${i === idx ? '<span class="badge">目前等級</span>' : ''}</div>
+          <div class="sub">${l.desc}<br>需要 ${l.at} 點</div>
+        </div>
+        <div class="state ${i <= idx ? 'ok' : 'lock'}">${i <= idx ? CHECK : LOCK}</div>
+      </div>`).join('');
+
+    const recent = d.recent.length
+      ? d.recent.map(r => `
+        <div class="item">
+          <span class="chip ${r.type === '修慧' ? 'hui' : ''}">${r.type === '修慧' ? '存慧' : '存福'}</span>
+          <div class="mid"><b style="font-weight:500">${esc(r.spot)}</b><div class="sub" style="margin:0">${esc(r.date.replace(/-/g, '/'))}</div></div>
+          <div class="dur">${duration(r.minutes)}</div>
+        </div>`).join('')
       : `<div class="empty">存摺還是新的<br>下次來寺裡，記得碰一下貼紙 🙏</div>`;
 
     app.innerHTML = `
-      <div class="book">
-        <div class="top">
+      <div class="me">
+        <div class="avatar">${picture ? `<img src="${esc(picture)}" alt="">` : cur.icon}</div>
+        <div>
+          <b>${esc(d.name)}</b>
+          <span class="chip">${cur.name}</span>
+        </div>
+      </div>
+
+      <div class="level">
+        <div class="head">
+          <div class="lotus">${cur.icon}</div>
           <div>
-            <div class="label">個人福慧</div>
-            <div class="title">福慧累積</div>
-            <div class="who">${esc(d.name)}</div>
+            <small>目前蓮花等級</small>
+            <h2>${cur.name}</h2>
+            <div class="desc">${cur.desc}</div>
           </div>
-          <div class="plant">${cur.icon}</div>
+        </div>
+        <div class="progress">
+          <div class="row"><span>${cur.name}</span><span>${next ? `${next.name}（${next.at} 點）` : '圓滿'}</span></div>
+          <div class="bar"><i></i></div>
+          <div class="foot"><span>累積 ${total} 點</span><span>${next ? `還差 ${next.at - total} 點升級` : '金蓮常開'}</span></div>
         </div>
         <div class="stats">
-          <div class="stat"><small>總點數</small><b>${total}</b><em>&nbsp;</em></div>
-          <div class="stat"><small>存福</small><b>${d.fu}</b><em>${d.fuHours} 小時</em></div>
-          <div class="stat"><small>存慧</small><b>${d.hui}</b><em>${d.huiHours} 小時</em></div>
-        </div>
-        <div class="level">
-          <span>${cur.name}</span>
-          <span>${next ? `${next.name}（${next.at} 點）` : '蓮花已開'}</span>
-        </div>
-        <div class="bar"><i style="width:0%"></i></div>
-        <div class="level-foot">
-          <span>${next ? `再 ${next.at - total} 點，就長成${next.name}` : '蓮花已開，願您福慧圓滿'}</span>
-          <span>${pct}%</span>
+          <div><b>${total}</b><span>總點數</span><em>&nbsp;</em></div>
+          <div><b>${d.fu}</b><span>存福點數</span><em>${d.fuHours} 小時</em></div>
+          <div><b>${d.hui}</b><span>存慧點數</span><em>${d.huiHours} 小時</em></div>
         </div>
       </div>
 
       <div class="section">
-        <h2>蓮花成長</h2>
-        <div class="list" style="padding:16px 10px">
-          <div class="ladder">
-            ${LEVELS.map((l, i) => `<div class="${i <= idx ? 'on' : ''}"><b>${l.icon}</b>${l.name}<br>${l.at} 點</div>`).join('')}
-          </div>
-        </div>
+        <h3>本月重點活動</h3>
+        <div class="list">${events}</div>
       </div>
 
       <div class="section">
-        <h2>最近的足跡</h2>
-        <div class="list">${rows}</div>
+        <h3>蓮花等級</h3>
+        <div class="list">${levels}</div>
       </div>
 
-      <div class="foot">修福・發心工作　修慧・來上課聞法</div>`;
+      <div class="section">
+        <h3>最近的足跡</h3>
+        <div class="list">${recent}</div>
+      </div>
 
-    requestAnimationFrame(() => {
+      ${d.isAdmin ? `<a href="/checkin/admin" style="display:block;margin-top:22px;text-align:center;padding:14px;border-radius:14px;background:var(--green);color:#fff;text-decoration:none;letter-spacing:0.15em;font-size:15px">負責人：查看全部義工</a>` : ''}
+      <div class="foot-note">修福・發心工作　修慧・來上課聞法</div>`;
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       app.querySelector('.bar i').style.width = Math.max(pct, total ? 4 : 0) + '%';
-    });
+    }));
   }
 
   function message(title, body) {
@@ -267,7 +285,9 @@
     if (data.status === 'notRegistered') {
       return message('還沒有您的存摺', '下次來寺裡，用手機碰一下打卡貼紙<br>就會幫您開好存摺 🙏');
     }
-    render(data);
+    let picture = '';
+    try { picture = (liff.getDecodedIDToken() || {}).picture || ''; } catch (err) {}
+    render(data, picture);
   })();
 </script>
 </body>

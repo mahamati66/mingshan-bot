@@ -187,6 +187,7 @@ async function postReply(commentId, message) {
 // 義工打卡（NFC 貼紙 + LINE 登入）＋ 福慧存摺
 // 貼紙網址：https://liff.line.me/<LIFF_ID>?spot=xiangji
 // 存摺網址：https://liff.line.me/<LIFF_ID>/passbook
+// 負責人總覽：https://liff.line.me/<LIFF_ID>/admin（名冊「權限」欄填「負責人」才看得到）
 // =====================================================================
 const LIFF_ID = process.env.LIFF_ID || '';
 const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID || '';
@@ -211,9 +212,13 @@ function loadPage(file) {
 }
 const CHECKIN_PAGE = loadPage('checkin.html');
 const PASSBOOK_PAGE = loadPage('passbook.html');
+const ADMIN_PAGE = loadPage('admin.html');
+const LOTUS_JS = loadPage('lotus.js');
 
 app.get('/checkin', (req, res) => res.type('html').send(CHECKIN_PAGE));
 app.get('/checkin/passbook', (req, res) => res.type('html').send(PASSBOOK_PAGE));
+app.get('/checkin/admin', (req, res) => res.type('html').send(ADMIN_PAGE));
+app.get('/checkin/lotus.js', (req, res) => res.type('application/javascript').send(LOTUS_JS));
 
 // 向 LINE 確認這個人真的是用 LINE 登入的，回傳 { userId, lineName }
 async function verifyLineUser(idToken) {
@@ -274,17 +279,20 @@ app.post('/checkin/api', async (req, res) => {
   }
 });
 
-app.post('/checkin/passbook/api', async (req, res) => {
-  if (!checkinConfigured(res)) return;
-  try {
-    const user = await verifyLineUser((req.body || {}).idToken);
-    if (!user) return res.status(401).json({ ok: false, error: 'relogin' });
-    res.json(await callCheckinScript({ action: 'passbook', userId: user.userId }));
-  } catch (err) {
-    console.error('讀取福慧存摺失敗:', err);
-    res.status(500).json({ ok: false, error: 'server_error' });
-  }
-});
+// 福慧存摺（只回自己的）與負責人總覽（Apps Script 會再檢查是不是負責人）
+for (const action of ['passbook', 'admin']) {
+  app.post(`/checkin/${action}/api`, async (req, res) => {
+    if (!checkinConfigured(res)) return;
+    try {
+      const user = await verifyLineUser((req.body || {}).idToken);
+      if (!user) return res.status(401).json({ ok: false, error: 'relogin' });
+      res.json(await callCheckinScript({ action, userId: user.userId }));
+    } catch (err) {
+      console.error(`讀取 ${action} 失敗:`, err);
+      res.status(500).json({ ok: false, error: 'server_error' });
+    }
+  });
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`明善寺小助手運行中，Port: ${PORT}`));

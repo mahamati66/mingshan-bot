@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>義工福慧總覽</title>
+<style>
+  :root {
+    --bg: #f6f2ea; --card: #fffdf8; --ink: #2f2a24; --muted: #8a8174;
+    --green: #3d5a45; --green-soft: #e4ebe3; --gold: #b08d57; --gold-deep: #8f6c3c;
+    --gold-soft: #f3e8d4; --tea: #d9c8ad; --line: #e7dfd1;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  }
+  header { display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header .seal { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--gold); display: flex; align-items: center; justify-content: center; color: var(--gold-deep); font-size: 14px; font-weight: 600; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: 0.12em; font-weight: 600; }
+  header a { margin-left: auto; font-size: 13px; color: var(--gold); text-decoration: none; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 18px 16px; }
+  svg { display: block; }
+
+  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .summary div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 6px; text-align: center; }
+  .summary b { display: block; font-size: 24px; color: var(--green); font-weight: 600; }
+  .summary span { font-size: 12px; color: var(--muted); letter-spacing: 0.08em; }
+
+  .tools { display: flex; gap: 8px; margin: 18px 0 12px; }
+  .tools input { flex: 1; min-width: 0; padding: 11px 14px; font-size: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); outline: none; }
+  .tools input:focus { border-color: var(--green); }
+  .tools select { padding: 0 10px; font-size: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); }
+
+  .list { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: none; }
+  .rank { flex: none; width: 22px; text-align: center; font-size: 13px; color: var(--tea); }
+  .icon { flex: none; width: 40px; height: 40px; border-radius: 50%; background: #fbf3e2; display: flex; align-items: center; justify-content: center; }
+  .icon svg { width: 28px; height: 28px; }
+  .mid { flex: 1; min-width: 0; }
+  .mid .top { display: flex; align-items: center; gap: 8px; }
+  .mid b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip { flex: none; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--gold-soft); color: var(--gold-deep); }
+  .mid .sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .pts { flex: none; text-align: right; }
+  .pts b { display: block; font-size: 20px; color: var(--green); font-weight: 600; }
+  .pts span { font-size: 11px; color: var(--muted); }
+  .empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+  .center { text-align: center; padding: 80px 24px; color: var(--muted); line-height: 1.9; }
+  .spin { width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; border: 1.5px solid var(--tea); border-top-color: var(--green); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .note { text-align: center; margin-top: 20px; font-size: 12px; color: var(--muted); line-height: 1.8; }
+</style>
+</head>
+<body>
+<header>
+  <div class="seal">明</div>
+  <h1>義工福慧總覽</h1>
+  <a href="/checkin/passbook">我的存摺</a>
+</header>
+<div class="wrap" id="app">
+  <div class="center"><div class="spin"></div>整理中⋯</div>
+</div>
+
+<script src="/checkin/lotus.js"></script>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+  const LIFF_ID = '__LIFF_ID__';
+  const app = document.getElementById('app');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let DATA = null;
+
+  function message(title, body) {
+    app.innerHTML = `<div class="center"><b style="color:var(--ink);font-size:18px">${title}</b><br>${body}</div>`;
+  }
+
+  function render() {
+    const people = DATA.people;
+    const sum = (k) => people.reduce((a, p) => a + p[k], 0);
+    app.innerHTML = `
+      <div class="summary">
+        <div><b>${people.length}</b><span>位義工</span></div>
+        <div><b>${sum('yearPoints')}</b><span>${DATA.year} 年點數</span></div>
+        <div><b>${Math.round(sum('fuHours') + sum('huiHours'))}</b><span>累計時數</span></div>
+      </div>
+      <div class="tools">
+        <input id="q" placeholder="搜尋名字">
+        <select id="sort">
+          <option value="total">總點數</option>
+          <option value="year">今年點數</option>
+          <option value="fu">存福</option>
+          <option value="hui">存慧</option>
+          <option value="last">最近來</option>
+        </select>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="note">只有負責人看得到這一頁<br>更完整的年度報表，請到試算表「明善寺 → 產生年度護持報表」</div>`;
+    document.getElementById('q').oninput = renderList;
+    document.getElementById('sort').onchange = renderList;
+    renderList();
+  }
+
+  function renderList() {
+    const q = document.getElementById('q').value.trim();
+    const sort = document.getElementById('sort').value;
+    const key = {
+      total: p => p.fu + p.hui, year: p => p.yearPoints, fu: p => p.fu, hui: p => p.hui, last: p => p.last,
+    }[sort];
+    const list = DATA.people
+      .filter(p => !q || p.name.includes(q))
+      .slice()
+      .sort((a, b) => (key(b) > key(a) ? 1 : key(b) < key(a) ? -1 : 0));
+    document.getElementById('list').innerHTML = list.length ? list.map((p, i) => {
+      const total = p.fu + p.hui;
+      const { cur } = lotusLevel(total);
+      return `
+        <div class="row">
+          <div class="rank">${i + 1}</div>
+          <div class="icon">${cur.icon}</div>
+          <div class="mid">
+            <div class="top"><b>${esc(p.name)}</b><span class="chip">${cur.name}</span></div>
+            <div class="sub">存福 ${p.fu}（${p.fuHours} 時）・存慧 ${p.hui}（${p.huiHours} 時）<br>最近：${p.last ? esc(p.last.replace(/-/g, '/')) : '尚未打卡'}</div>
+          </div>
+          <div class="pts"><b>${total}</b><span>點</span></div>
+        </div>`;
+    }).join('') : '<div class="empty">找不到這位義工</div>';
+  }
+
+  (async function start() {
+    try {
+      await liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser: true });
+    } catch (err) {
+      return message('暫時無法開啟', '請確認手機有連上網路，再試一次 🙏');
+    }
+    if (!liff.isLoggedIn()) return liff.login({ redirectUri: location.href });
+
+    let data;
+    try {
+      const res = await fetch('/checkin/admin/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: liff.getIDToken() }),
+      });
+      data = await res.json();
+    } catch (err) {
+      return message('網路好像不太順', '請稍等一下再打開 🙏');
+    }
+    if (data.error === 'relogin' && !sessionStorage.getItem('relogged')) {
+      sessionStorage.setItem('relogged', '1');
+      liff.logout();
+      return liff.login({ redirectUri: location.href });
+    }
+    sessionStorage.removeItem('relogged');
+    if (data.error === 'forbidden') return message('這一頁只有負責人能看', '想看自己的點數，請打開「我的福慧存摺」🙏');
+    if (!data.ok) return message('暫時打不開', '請稍後再試 🙏');
+    DATA = data;
+    render();
+  })();
+</script>
+</body>
+</html>

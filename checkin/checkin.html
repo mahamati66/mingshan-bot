@@ -53,6 +53,7 @@
     color: var(--green);
     font-size: 26px;
   }
+  .mark span svg { width: 100%; height: 100%; display: block; }
   .spin { border-color: var(--tea); border-top-color: var(--green); animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   h1 { font-size: 22px; font-weight: 600; margin: 0 0 12px; line-height: 1.5; }
@@ -126,6 +127,7 @@
   <div class="foot">每一次發心，寺裡都記得</div>
 </main>
 
+<script src="/checkin/lotus.js"></script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
   const LIFF_ID = '__LIFF_ID__';
@@ -205,7 +207,19 @@
     switch (data.status) {
       case 'needName': return askName(data.lineName);
       case 'needType': return askType(data.name);
-      case 'arrive':
+      case 'arrive': {
+        // 這一點剛好讓蓮花升級：先恭喜
+        const lv = data.total && window.lotusLevel ? lotusLevel(data.total) : null;
+        if (lv && lv.cur.at === data.total && data.total > 0) {
+          return show(`
+            <div class="mark" style="width:110px;height:110px;border-width:3px;background:#fbf3e2"><span style="width:72px;height:72px;display:block">${lv.cur.icon}</span></div>
+            <h1>恭喜 ${esc(data.name)}<br>長成「${lv.cur.name}」</h1>
+            <p>${lv.cur.desc}</p>
+            <div class="tag">${t} · ${esc(data.spotLabel || '')}</div>
+            <div class="big" style="font-size:22px">${t === '修慧' ? '存慧' : '存福'} +1 點・累積 ${data.total} 點</div>
+            <p style="font-size:13px">要離開時，再碰一次貼紙就好</p>
+            <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
+        }
         return show(`
           <div class="mark">🙏</div>
           <h1>${greeting()}，${esc(data.name)}</h1>
@@ -215,6 +229,7 @@
           <div class="big" style="font-size:22px">${t === '修慧' ? '存慧' : '存福'} +1 點</div>
           <p style="font-size:13px">要離開時，再碰一次貼紙就好</p>
           <a class="link" href="/checkin/passbook">看我的福慧存摺 →</a>`);
+      }
       case 'leave':
         return show(`
           <div class="mark">🙏</div>
