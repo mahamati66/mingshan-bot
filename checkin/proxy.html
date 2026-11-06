@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>班長代打卡</title>
+<style>
+  :root {
+    --bg: #f6f2ea; --card: #fffdf8; --ink: #2f2a24; --muted: #8a8174;
+    --green: #3d5a45; --green-soft: #e4ebe3; --gold: #b08d57; --gold-deep: #8f6c3c;
+    --gold-soft: #f3e8d4; --tea: #d9c8ad; --line: #e7dfd1; --warn: #a0522d; --warn-soft: #f6e6dc;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
+  }
+  header { display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header .seal { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--gold); display: flex; align-items: center; justify-content: center; color: var(--gold-deep); font-size: 14px; font-weight: 600; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: 0.12em; font-weight: 600; }
+  header a { margin-left: auto; font-size: 13px; color: var(--gold); text-decoration: none; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
+
+  .panel { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 4px 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label.cap { display: block; font-size: 12px; color: var(--muted); letter-spacing: 0.12em; margin-bottom: 6px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
+  .seg button { border: none; background: transparent; padding: 10px 0; font-size: 16px; border-radius: 9px; color: var(--muted); letter-spacing: 0.1em; }
+  .seg button.on { background: var(--green); color: #fff; }
+  select { width: 100%; height: 44px; padding: 0 10px; font-size: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); }
+  .search { width: 100%; margin-top: 12px; padding: 12px 14px; font-size: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); outline: none; }
+  .search:focus { border-color: var(--green); }
+
+  .toast { margin-top: 10px; padding: 12px 14px; border-radius: 12px; font-size: 15px; line-height: 1.6; display: none; }
+  .toast.ok { display: block; background: var(--green-soft); color: var(--green); }
+  .toast.warn { display: block; background: var(--warn-soft); color: var(--warn); }
+
+  .list { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .m { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); }
+  .m:first-child { border-top: none; }
+  .m .mid { flex: 1; min-width: 0; }
+  .m b { font-size: 17px; font-weight: 600; }
+  .m .sub { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+  .tag.fu { background: var(--gold-soft); color: var(--gold-deep); }
+  .tag.hui { background: var(--green-soft); color: var(--green); }
+  .go {
+    flex: none; min-width: 76px; padding: 10px 14px; font-size: 15px; border-radius: 10px;
+    border: 1px solid var(--green); background: var(--card); color: var(--green); letter-spacing: 0.1em;
+  }
+  .go.confirm { background: var(--green); color: #fff; }
+  .go:disabled { opacity: 0.45; border-color: var(--line); color: var(--muted); }
+  .empty { padding: 26px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+
+  .add { margin-top: 18px; }
+  .add h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.12em; margin: 0 0 8px 4px; font-weight: 600; }
+  .add .line { display: flex; gap: 8px; }
+  .add input { flex: 1; min-width: 0; padding: 12px 14px; font-size: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); outline: none; }
+  .add button { flex: none; padding: 0 16px; font-size: 15px; border: none; border-radius: 12px; background: var(--green); color: #fff; letter-spacing: 0.08em; }
+  .add p { font-size: 12px; color: var(--muted); margin: 8px 4px 0; line-height: 1.7; }
+
+  .center { text-align: center; padding: 80px 24px; color: var(--muted); line-height: 1.9; }
+  .spin { width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; border: 1.5px solid var(--tea); border-top-color: var(--green); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="seal">明</div>
+  <h1>班長代打卡</h1>
+  <a href="/checkin/passbook">我的存摺</a>
+</header>
+<div class="wrap" id="app">
+  <div class="center"><div class="spin"></div>整理名單中⋯</div>
+</div>
+
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+  const LIFF_ID = '__LIFF_ID__';
+  const app = document.getElementById('app');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const state = { type: '修福', spot: '', members: [], spots: [], armed: null, armTimer: null, busy: false };
+
+  function message(title, body) {
+    app.innerHTML = `<div class="center"><b style="color:var(--ink);font-size:18px">${title}</b><br>${body}</div>`;
+  }
+
+  async function api(body) {
+    const res = await fetch('/checkin/proxy/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ idToken: liff.getIDToken() }, body)),
+    });
+    const data = await res.json();
+    if (data.error === 'relogin' && !sessionStorage.getItem('relogged')) {
+      sessionStorage.setItem('relogged', '1');
+      liff.logout();
+      liff.login({ redirectUri: location.href });
+      return null;
+    }
+    sessionStorage.removeItem('relogged');
+    return data;
+  }
+
+  function toast(kind, html) {
+    const t = document.getElementById('toast');
+    t.className = 'toast ' + kind;
+    t.innerHTML = html;
+  }
+
+  function render(me) {
+    app.innerHTML = `
+      <div class="panel">
+        <div class="card">
+          <div class="row2">
+            <div>
+              <label class="cap">類別</label>
+              <div class="seg" id="seg">
+                <button data-type="修福">修福</button>
+                <button data-type="修慧">修慧</button>
+              </div>
+            </div>
+            <div>
+              <label class="cap">地點</label>
+              <select id="spot">${state.spots.map(s => `<option value="${esc(s.key)}">${esc(s.label)}</option>`).join('')}</select>
+            </div>
+          </div>
+        </div>
+        <input class="search" id="q" placeholder="搜尋名字">
+        <div class="toast" id="toast"></div>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="add">
+        <h3>新增長輩</h3>
+        <div class="line">
+          <input id="newName" maxlength="20" placeholder="沒有 LINE 的長輩名字">
+          <button id="addBtn">新增並打卡</button>
+        </div>
+        <p>${esc(me)} 師兄／師姐，代打卡的紀錄會註明是您代打的。<br>新增後，下次直接在名單點他的名字就好。</p>
+      </div>`;
+
+    document.querySelectorAll('#seg button').forEach(b => { b.onclick = () => setType(b.dataset.type); });
+    const sel = document.getElementById('spot');
+    sel.onchange = () => {
+      state.spot = sel.value;
+      const s = state.spots.find(x => x.key === state.spot);
+      if (s && s.type) setType(s.type);
+    };
+    state.spot = sel.value;
+    const first = state.spots.find(x => x.key === state.spot);
+    setType(first && first.type ? first.type : '修福');
+    document.getElementById('q').oninput = renderList;
+    document.getElementById('addBtn').onclick = addNew;
+  }
+
+  function setType(t) {
+    state.type = t;
+    document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b.dataset.type === t));
+    disarm();
+    renderList();
+  }
+
+  function disarm() {
+    state.armed = null;
+    clearTimeout(state.armTimer);
+  }
+
+  function renderList() {
+    const q = (document.getElementById('q') || {}).value || '';
+    const list = state.members.filter(m => !q.trim() || m.name.includes(q.trim()));
+    document.getElementById('list').innerHTML = list.length ? list.map(m => {
+      const full = m.today[state.type] >= 2;
+      const armed = state.armed === m.id;
+      return `
+        <div class="m">
+          <div class="mid">
+            <b>${esc(m.name)}</b>
+            <div class="sub">
+              <span class="tag fu">今日修福 ${m.today['修福']}</span>
+              <span class="tag hui">今日修慧 ${m.today['修慧']}</span>
+              ${m.noLine ? '<span class="tag">無 LINE</span>' : ''}
+            </div>
+          </div>
+          <button class="go ${armed ? 'confirm' : ''}" data-id="${esc(m.id)}" ${full ? 'disabled' : ''}>
+            ${full ? '已滿' : armed ? '確定？' : '打卡'}
+          </button>
+        </div>`;
+    }).join('') : `<div class="empty">名單裡找不到「${esc(q)}」<br>可以在下方新增</div>`;
+    document.querySelectorAll('.go').forEach(b => { b.onclick = () => tap(b.dataset.id); });
+  }
+
+  // 點兩下才打卡：第一下變成「確定？」，3 秒內再點一下才送出，避免手滑
+  function tap(id) {
+    if (state.busy) return;
+    if (state.armed !== id) {
+      state.armed = id;
+      clearTimeout(state.armTimer);
+      state.armTimer = setTimeout(() => { state.armed = null; renderList(); }, 3000);
+      return renderList();
+    }
+    disarm();
+    submit({ targetId: id });
+  }
+
+  async function addNew() {
+    const input = document.getElementById('newName');
+    const name = input.value.trim();
+    if (!name) return input.focus();
+    if (state.busy) return;
+    const r = await submit({ newName: name });
+    if (r && (r.status === 'arrive' || r.status === 'tooSoon' || r.status === 'dailyMax')) input.value = '';
+  }
+
+  async function submit(extra) {
+    state.busy = true;
+    toast('ok', '打卡中⋯');
+    let r;
+    try {
+      r = await api(Object.assign({ op: 'checkin', type: state.type, spot: state.spot }, extra));
+    } catch (err) {
+      state.busy = false;
+      toast('warn', '網路好像不太順，請再試一次');
+      return null;
+    }
+    state.busy = false;
+    if (!r) return null;
+    if (!r.ok) {
+      toast('warn', r.error === 'forbidden' ? '這個功能只有班長能用' : '打卡沒有成功，請再試一次');
+      return r;
+    }
+    const n = esc(r.name || '');
+    const t = r.type === '修慧' ? '存慧' : '存福';
+    switch (r.status) {
+      case 'arrive': {
+        let m = state.members.find(x => x.id === r.targetId);
+        if (!m) {
+          m = { id: r.targetId, name: r.name, noLine: true, today: { 修福: 0, 修慧: 0 } };
+          state.members.push(m);
+          state.members.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+        }
+        m.today[r.type] = r.today;
+        toast('ok', `🙏 已幫 <b>${n}</b> ${t} +1 點（今天第 ${r.today} 點${r.type}）`);
+        break;
+      }
+      case 'tooSoon':
+        toast('warn', `${n} 今天 ${esc(r.lastAt)} 已經打過${esc(r.type)}，` +
+          (r.nextAt ? `${esc(r.nextAt)} 以後才能再打` : '今天不能再打了'));
+        break;
+      case 'dailyMax':
+        toast('warn', `${n} 今天的${esc(r.type)}已經滿 2 點了`);
+        break;
+      case 'nameExists':
+        document.getElementById('q').value = r.name;
+        toast('warn', `名冊裡已經有「${n}」，請直接在名單點他的名字`);
+        break;
+      default:
+        toast('warn', '打卡沒有成功，請再試一次');
+    }
+    renderList();
+    return r;
+  }
+
+  (async function start() {
+    try {
+      await liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser: true });
+    } catch (err) {
+      return message('暫時無法開啟', '請確認手機有連上網路，再試一次 🙏');
+    }
+    if (!liff.isLoggedIn()) return liff.login({ redirectUri: location.href });
+    let data;
+    try {
+      data = await api({ op: 'list' });
+    } catch (err) {
+      return message('網路好像不太順', '請稍等一下再打開 🙏');
+    }
+    if (!data) return;
+    if (data.error === 'forbidden') {
+      return message('這一頁只有班長能用', '需要代打卡的話，請負責人在「義工名冊」的權限欄填「班長」🙏');
+    }
+    if (!data.ok) return message('暫時打不開', '請稍後再試 🙏');
+    state.members = data.members;
+    state.spots = data.spots || [];
+    render(data.me);
+  })();
+</script>
+</body>
+</html>

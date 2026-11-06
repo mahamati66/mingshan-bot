@@ -215,11 +215,13 @@ function loadPage(file) {
 const CHECKIN_PAGE = loadPage('checkin.html');
 const PASSBOOK_PAGE = loadPage('passbook.html');
 const ADMIN_PAGE = loadPage('admin.html');
+const PROXY_PAGE = loadPage('proxy.html');
 const LOTUS_JS = loadPage('lotus.js');
 
 app.get('/checkin', (req, res) => res.type('html').send(CHECKIN_PAGE));
 app.get('/checkin/passbook', (req, res) => res.type('html').send(PASSBOOK_PAGE));
 app.get('/checkin/admin', (req, res) => res.type('html').send(ADMIN_PAGE));
+app.get('/checkin/proxy', (req, res) => res.type('html').send(PROXY_PAGE));
 app.get('/checkin/lotus.js', (req, res) => res.type('application/javascript').send(LOTUS_JS));
 
 // 向 LINE 確認這個人真的是用 LINE 登入的，回傳 { userId, lineName }
@@ -277,6 +279,39 @@ app.post('/checkin/api', async (req, res) => {
     res.json(Object.assign({ spotLabel: spotInfo.label }, result));
   } catch (err) {
     console.error('打卡失敗:', err);
+    res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
+// 班長代打卡（Apps Script 會再檢查是不是班長或負責人）
+app.post('/checkin/proxy/api', async (req, res) => {
+  if (!checkinConfigured(res)) return;
+  const { idToken, op, targetId, newName, type, spot } = req.body || {};
+  try {
+    const user = await verifyLineUser(idToken);
+    if (!user) return res.status(401).json({ ok: false, error: 'relogin' });
+
+    if (op === 'list') {
+      const result = await callCheckinScript({ action: 'proxyList', userId: user.userId });
+      const spots = Object.entries(CHECKIN_SPOTS).map(([key, s]) => ({ key, label: s.label, type: s.type }));
+      return res.json(Object.assign({ spots }, result));
+    }
+
+    const spotInfo = CHECKIN_SPOTS[spot];
+    if (!spotInfo) return res.json({ ok: false, error: 'bad_spot' });
+    if (type !== '修福' && type !== '修慧') return res.json({ ok: false, error: 'bad_type' });
+    const result = await callCheckinScript({
+      action: 'proxyCheckin',
+      userId: user.userId,
+      targetId: typeof targetId === 'string' ? targetId : '',
+      newName: typeof newName === 'string' ? newName.trim().slice(0, 20) : '',
+      type,
+      spot: spotInfo.label,
+    });
+    console.log('代打卡：', spotInfo.label, type, result.status, result.name || '');
+    res.json(result);
+  } catch (err) {
+    console.error('代打卡失敗:', err);
     res.status(500).json({ ok: false, error: 'server_error' });
   }
 });

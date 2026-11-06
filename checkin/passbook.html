@@ -234,7 +234,8 @@
         <div class="list">${recent}</div>
       </div>
 
-      ${d.isAdmin ? `<a href="/checkin/admin" style="display:block;margin-top:22px;text-align:center;padding:14px;border-radius:14px;background:var(--green);color:#fff;text-decoration:none;letter-spacing:0.15em;font-size:15px">負責人：查看全部義工</a>` : ''}
+      ${d.canProxy ? `<a href="/checkin/proxy" style="display:block;margin-top:22px;text-align:center;padding:14px;border-radius:14px;border:1px solid var(--green);color:var(--green);background:var(--card);text-decoration:none;letter-spacing:0.15em;font-size:15px">班長：幫長輩代打卡</a>` : ''}
+      ${d.isAdmin ? `<a href="/checkin/admin" style="display:block;margin-top:22px;text-align:center;padding:14px;border-radius:14px;background:var(--green);color:#fff;text-decoration:none;letter-spacing:0.15em;font-size:15px;margin-top:10px">負責人：查看全部義工</a>` : ''}
       <div class="foot-note">修福、修慧分開算・各自一天最多 2 點（隔 4 小時）</div>`;
 
     requestAnimationFrame(() => requestAnimationFrame(() => {

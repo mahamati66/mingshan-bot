@@ -9,6 +9,8 @@
  *   修慧紀錄：來上課、共修聞法，每一列就是 1 點（存慧）
  *   義工名冊：LINE 帳號 ↔ 名字（名字要改，直接改這裡）
  *            「權限」欄填「負責人」，這個人就能在 LINE 看全部義工的點數
+ *            「權限」欄填「班長」（或負責人），這個人就能幫長輩代打卡
+ *            沒有 LINE 的長輩由班長新增，LINE ID 欄會是「無LINE-」開頭
  *   護持統計：自動加總每個人的存福、存慧點數
  *   活動行事曆：福慧存摺「本月重點活動」的來源
  *   信眾打卡：LINE 官方帳號傳「打卡」的紀錄（一人一天一列）
@@ -31,15 +33,17 @@ const EVENTS = '活動行事曆';
 const DEVOTEE = '信眾打卡';
 const TYPES = ['修福', '修慧'];
 
-// 修福紀錄、修慧紀錄的欄位：時間｜日期｜姓名｜地點｜LINE ID
-const LOG_COLS = 5;
+// 修福紀錄、修慧紀錄的欄位：時間｜日期｜姓名｜地點｜LINE ID｜代打卡（班長名字）
+const LOG_COLS = 5;  // 讀取用到前 5 欄
+// 可以代打卡的權限
+const PROXY_ROLES = ['班長', '負責人'];
 
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   TYPES.forEach(type => {
     const log = ss.getSheetByName(LOGS[type]) || ss.insertSheet(LOGS[type]);
-    log.getRange(1, 1, 1, LOG_COLS).setValues([['時間', '日期', '姓名', '地點', 'LINE ID']]);
+    log.getRange(1, 1, 1, 6).setValues([['時間', '日期', '姓名', '地點', 'LINE ID', '代打卡']]);
     log.setFrozenRows(1);
     log.getRange('A:A').setNumberFormat('yyyy/mm/dd hh:mm');
     log.getRange('B:B').setNumberFormat('@');  // 日期存成文字，避免被自動轉格式
@@ -99,7 +103,7 @@ function doPost(e) {
   lock.waitLock(15000);
   try {
     const fn = {
-      passbook: passbook, admin: admin,
+      passbook: passbook, admin: admin, proxyList: proxyList, proxyCheckin: proxyCheckin,
       devoteeCheckin: devoteeCheckin, devoteeStats: devoteeStats, devoteeReport: devoteeReport,
     }[req.action] || handle;
     return json(fn(req));
@@ -149,45 +153,118 @@ function handle(req) {
              : null;
   if (!type) return { ok: true, status: 'needType', name: name };
 
-  // 3. 看這個人今天這一類碰過幾次、今年這一類幾點、累積幾點
+  return recordCheckin(ss, { userId: req.userId, name: name, type: type, spot: req.spot, by: '' });
+}
+
+/**
+ * 記 1 點（本人打卡、班長代打卡共用同一套規則）
+ * p: { userId, name, type, spot, by }   by：代打卡的班長名字，本人打卡留空
+ */
+function recordCheckin(ss, p) {
+  const now = new Date();
+  // 看這個人今天這一類碰過幾次、今年這一類幾點、累積幾點
   const today = Utilities.formatDate(now, TZ, 'yyyy-MM-dd');
   const year = today.slice(0, 4);
   const todayRows = [];
   let yearCount = 0;
   let total = 0;
   for (const r of logRows(ss)) {
-    if (r[5] !== req.userId) continue;
+    if (r[5] !== p.userId) continue;
     total++;
-    if (r[4] !== type) continue;
+    if (r[4] !== p.type) continue;
     if (r[1].slice(0, 4) === year) yearCount++;
     if (r[1] === today) todayRows.push(r);
   }
+  const base = { ok: true, name: p.name, type: p.type };
 
-  // 4. 這一類今天已經滿 2 點
+  // 這一類今天已經滿 2 點
   if (todayRows.length >= MAX_PER_DAY) {
-    return { ok: true, status: 'dailyMax', name: name, type: type, times: todayRows.map(r => hhmm(r[0])) };
+    return Object.assign(base, { status: 'dailyMax', times: todayRows.map(r => hhmm(r[0])) });
   }
 
-  // 5. 這一類今天上一次打卡還沒滿 4 小時
+  // 這一類今天上一次打卡還沒滿 4 小時
   if (todayRows.length) {
     const lastAt = new Date(todayRows[todayRows.length - 1][0]);
     const nextAt = new Date(lastAt.getTime() + GAP_HOURS * 3600 * 1000);
     if (now < nextAt) {
       const nextDay = Utilities.formatDate(nextAt, TZ, 'yyyy-MM-dd') !== today;
-      return {
-        ok: true, status: 'tooSoon', name: name, type: type,
-        lastAt: hhmm(lastAt), nextAt: nextDay ? '' : hhmm(nextAt),
+      return Object.assign(base, {
+        status: 'tooSoon', lastAt: hhmm(lastAt), nextAt: nextDay ? '' : hhmm(nextAt),
         justNow: now - lastAt < 5 * 60 * 1000,
-      };
+      });
     }
   }
 
-  // 6. 記 1 點到修福紀錄或修慧紀錄
-  ss.getSheetByName(LOGS[type]).appendRow([now, today, name, req.spot, req.userId]);
-  return {
-    ok: true, status: 'arrive', name: name, type: type,
-    count: yearCount + 1, total: total + 1, today: todayRows.length + 1,
-  };
+  // 記 1 點到修福紀錄或修慧紀錄
+  ss.getSheetByName(LOGS[p.type]).appendRow([now, today, p.name, p.spot, p.userId, p.by || '']);
+  return Object.assign(base, {
+    status: 'arrive', count: yearCount + 1, total: total + 1, today: todayRows.length + 1,
+  });
+}
+
+// =====================================================================
+// 班長代打卡
+// =====================================================================
+
+function proxyAllowed(roster, userId) {
+  const me = findPerson(roster, userId);
+  return me && PROXY_ROLES.indexOf(me.role) >= 0 ? me : null;
+}
+
+function rosterMembers(roster) {
+  if (roster.getLastRow() < 2) return [];
+  return roster.getRange(2, 1, roster.getLastRow() - 1, 2).getValues()
+    .filter(r => r[0] && r[1])
+    .map(r => ({ id: String(r[0]), name: String(r[1]), noLine: String(r[0]).indexOf('無LINE-') === 0 }));
+}
+
+/** 代打卡名單 req: { userId } */
+function proxyList(req) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = ss.getSheetByName(ROSTER);
+  const me = proxyAllowed(roster, req.userId);
+  if (!me) return { ok: false, error: 'forbidden' };
+
+  // 今天每個人已經打過哪些類別，讓班長一眼看出來
+  const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  const done = {};
+  for (const r of logRows(ss)) {
+    if (r[1] !== today) continue;
+    const d = done[r[5]] || (done[r[5]] = { 修福: 0, 修慧: 0 });
+    d[r[4]]++;
+  }
+  const members = rosterMembers(roster)
+    .map(m => Object.assign(m, { today: done[m.id] || { 修福: 0, 修慧: 0 } }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+  return { ok: true, status: 'proxyList', me: me.name, members: members };
+}
+
+/**
+ * 代打卡 req: { userId, targetId?, newName?, type, spot }
+ *   targetId：名冊上的人；newName：新增一位沒有 LINE 的長輩
+ */
+function proxyCheckin(req) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = ss.getSheetByName(ROSTER);
+  const me = proxyAllowed(roster, req.userId);
+  if (!me) return { ok: false, error: 'forbidden' };
+  if (TYPES.indexOf(req.type) < 0) return { ok: false, error: 'bad_type' };
+
+  let target = null;
+  const members = rosterMembers(roster);
+  if (req.newName) {
+    const name = String(req.newName).trim().slice(0, 20);
+    if (!name) return { ok: false, error: 'bad_name' };
+    const same = members.filter(m => m.name === name);
+    if (same.length) return { ok: true, status: 'nameExists', name: name, id: same[0].id };
+    target = { id: '無LINE-' + Utilities.getUuid().slice(0, 8), name: name };
+    roster.appendRow([target.id, name, '', new Date(), '']);
+  } else {
+    target = members.filter(m => m.id === req.targetId)[0];
+    if (!target) return { ok: false, error: 'no_member' };
+  }
+  const result = recordCheckin(ss, { userId: target.id, name: target.name, type: req.type, spot: req.spot, by: me.name });
+  return Object.assign(result, { targetId: target.id });
 }
 
 /**
@@ -216,6 +293,7 @@ function passbook(req) {
     recent: visits.slice(-10).reverse(),
     events: monthEvents(ss),
     isAdmin: person.role === '負責人',
+    canProxy: PROXY_ROLES.indexOf(person.role) >= 0,
   };
 }
 
