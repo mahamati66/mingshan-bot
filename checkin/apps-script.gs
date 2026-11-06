@@ -108,6 +108,9 @@ function doPost(e) {
     }[req.action] || handle;
     return json(fn(req));
   } finally {
+    // 先把資料真正寫進試算表，再讓下一位排隊的人進來；
+    // 不然兩個人（或同一支手機重複送出）幾乎同時打卡時，第二筆會看不到第一筆
+    SpreadsheetApp.flush();
     lock.releaseLock();
   }
 }
@@ -120,13 +123,24 @@ function logRows(ss) {
     const log = ss.getSheetByName(LOGS[type]);
     if (!log || log.getLastRow() < 2) return;
     log.getRange(2, 1, log.getLastRow() - 1, LOG_COLS).getValues().forEach(r => {
-      if (r[4]) all.push([r[0], String(r[1]), r[2], r[3], type, r[4]]);
+      if (r[4]) all.push([r[0], cellDate(r[1], r[0]), r[2], r[3], type, r[4]]);
     });
   });
   return all.sort((a, b) => new Date(a[0]) - new Date(b[0]));
 }
 
 const hhmm = d => Utilities.formatDate(new Date(d), TZ, 'HH:mm');
+
+// 日期欄統一成 yyyy-MM-dd 文字（就算試算表把它自動轉成日期格式，或手動補的列沒填日期也認得）
+function cellDate(dateCell, timeCell) {
+  if (dateCell instanceof Date) return Utilities.formatDate(dateCell, TZ, 'yyyy-MM-dd');
+  const s = String(dateCell || '').trim().replace(/\//g, '-');
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) {
+    const [y, m, d] = s.split('-');
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return timeCell instanceof Date ? Utilities.formatDate(timeCell, TZ, 'yyyy-MM-dd') : s;
+}
 
 /**
  * 打卡
@@ -342,7 +356,9 @@ function devoteeSheet(ss) {
 }
 
 function devoteeRows(sheet) {
-  return sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues() : [];
+  if (sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues()
+    .map(r => [cellDate(r[0], r[1]), r[1], r[2], r[3]]);
 }
 
 function dayString(d) {
