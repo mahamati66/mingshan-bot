@@ -274,7 +274,7 @@
     }
     sessionStorage.removeItem('relogged');
 
-    if (!data.ok) return message('存摺暫時打不開', '請稍後再試，或告訴知客處的師父 🙏');
+    if (!data.ok) return message('存摺暫時打不開', '請稍後再試，或告訴客堂的師父 🙏');
     if (data.status === 'notRegistered') {
       return message('還沒有您的存摺', '下次來寺裡，用手機碰一下打卡貼紙<br>就會幫您開好存摺 🙏');
     }

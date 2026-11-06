@@ -51,15 +51,16 @@
 | `CHECKIN_SCRIPT_URL` | 第一步部署出來的網址 |
 | `CHECKIN_SECRET` | 第一步自己設的密碼 |
 
-## 四、三張 NFC 貼紙
+## 四、四張 NFC 貼紙
 
-用手機 App「NFC Tools」→ 寫入 → 新增紀錄 → 網址，寫入以下網址，寫好後**鎖定**貼紙。
+用手機 App「NFC Tools」→ 寫入 → 新增紀錄 → 網址，寫入以下網址，實際碰過確認能打卡後再**鎖定**貼紙。
 
 | 貼紙位置 | 網址 | 類別 |
 |---|---|---|
-| 齋堂／香積廚 | `https://liff.line.me/<LIFF_ID>?spot=xiangji` | 修福 |
-| 大殿 | `https://liff.line.me/<LIFF_ID>?spot=dadian` | 讓義工選修福或修慧 |
-| 知客處 | `https://liff.line.me/<LIFF_ID>?spot=zhike` | 修福 |
+| 客堂 | `https://liff.line.me/<LIFF_ID>?spot=ketang` | 修福 |
+| 西單客堂 | `https://liff.line.me/<LIFF_ID>?spot=xidan` | 修福 |
+| 大殿 | `https://liff.line.me/<LIFF_ID>?spot=dadian` | 修慧 |
+| 教室 | `https://liff.line.me/<LIFF_ID>?spot=jiaoshi` | 修慧 |
 
 要改地點名稱或類別：改 `index.js` 裡的 `CHECKIN_SPOTS`。
 
@@ -73,7 +74,7 @@
 負責人從存摺頁下方的按鈕進總覽就好，不用另外放在選單上。
 
 **本月重點活動**：存摺頁會顯示試算表「活動行事曆」裡、月份是這個月的活動。
-每月初由知客處在試算表新增幾列（月份｜活動｜類別｜日期｜時間｜圖示）就好，月份寫成 `2026-12` 這樣。
+每月初由客堂在試算表新增幾列（月份｜活動｜類別｜日期｜時間｜圖示）就好，月份寫成 `2026-12` 這樣。
 
 ## 六、一年的護持表現
 

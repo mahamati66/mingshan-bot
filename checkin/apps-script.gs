@@ -73,7 +73,7 @@ function setup() {
   devotee.getRange('B:B').setNumberFormat('yyyy/mm/dd hh:mm');
   devotee.hideColumns(4);
 
-  // 活動行事曆：福慧存摺的「本月重點活動」從這裡讀，每月由知客處更新
+  // 活動行事曆：福慧存摺的「本月重點活動」從這裡讀，每月由客堂更新
   let events = ss.getSheetByName(EVENTS);
   if (!events) {
     events = ss.insertSheet(EVENTS);

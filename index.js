@@ -187,7 +187,7 @@ async function postReply(commentId, message) {
 
 // =====================================================================
 // 義工打卡（NFC 貼紙 + LINE 登入）＋ 福慧存摺
-// 貼紙網址：https://liff.line.me/<LIFF_ID>?spot=xiangji
+// 貼紙網址：https://liff.line.me/<LIFF_ID>?spot=ketang
 // 存摺網址：https://liff.line.me/<LIFF_ID>/passbook
 // 負責人總覽：https://liff.line.me/<LIFF_ID>/admin（名冊「權限」欄填「負責人」才看得到）
 // =====================================================================
@@ -196,11 +196,12 @@ const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID || '';
 const CHECKIN_SCRIPT_URL = process.env.CHECKIN_SCRIPT_URL || '';
 const CHECKIN_SECRET = process.env.CHECKIN_SECRET || '';
 
-// 三張貼紙：地點代號 → 顯示名稱、類別（type 留 null 代表讓義工自己選修福或修慧）
+// 四張貼紙：地點代號 → 顯示名稱、類別（type 留 null 代表讓義工自己選修福或修慧）
 const CHECKIN_SPOTS = {
-  xiangji: { label: '香積組', type: '修福' },
-  dadian:  { label: '大殿',   type: null },
-  zhike:   { label: '知客處', type: '修福' },
+  ketang:  { label: '客堂',     type: '修福' },
+  xidan:   { label: '西單客堂', type: '修福' },
+  dadian:  { label: '大殿',     type: '修慧' },
+  jiaoshi: { label: '教室',     type: '修慧' },
 };
 
 function loadPage(file) {
