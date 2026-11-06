@@ -284,6 +284,26 @@ app.post('/checkin/api', async (req, res) => {
   }
 });
 
+// 健康檢查：確認機器人設定齊全、連得到試算表、試算表程式是哪一版（不含任何個資）
+app.get('/checkin/health', async (req, res) => {
+  const config = {
+    LIFF_ID: !!LIFF_ID, LINE_LOGIN_CHANNEL_ID: !!LINE_LOGIN_CHANNEL_ID,
+    CHECKIN_SCRIPT_URL: !!CHECKIN_SCRIPT_URL, CHECKIN_SECRET: !!CHECKIN_SECRET,
+    LINE_CHANNEL_SECRET: !!LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN: !!LINE_CHANNEL_ACCESS_TOKEN,
+    REPORT_KEY: !!REPORT_KEY,
+  };
+  let script = 'not_configured';
+  if (CHECKIN_SCRIPT_URL && CHECKIN_SECRET) {
+    try {
+      const r = await callCheckinScript({ action: 'ping' });
+      script = r.status === 'pong' ? { version: r.version } : (r.error || 'old_version_no_ping');
+    } catch (err) {
+      script = 'unreachable';
+    }
+  }
+  res.json({ config, script });
+});
+
 // 班長代打卡（Apps Script 會再檢查是不是班長或負責人）
 app.post('/checkin/proxy/api', async (req, res) => {
   if (!checkinConfigured(res)) return;

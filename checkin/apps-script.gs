@@ -18,6 +18,9 @@
  * 第一次使用：把 SECRET 改掉 → 執行一次 setup() → 部署成「網頁應用程式」。
  */
 
+// 程式版本（機器人的 /checkin/health 會顯示，用來確認試算表跑的是不是最新版）
+const SCRIPT_VERSION = '2026-11-06c';
+
 // 要跟伺服器的 CHECKIN_SECRET 一模一樣
 const SECRET = '請改成一組只有你知道的密碼';
 const TZ = 'Asia/Taipei';
@@ -102,6 +105,7 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    if (req.action === 'ping') return json({ ok: true, status: 'pong', version: SCRIPT_VERSION });
     const fn = {
       passbook: passbook, admin: admin, proxyList: proxyList, proxyCheckin: proxyCheckin,
       devoteeCheckin: devoteeCheckin, devoteeStats: devoteeStats, devoteeReport: devoteeReport,
@@ -131,15 +135,18 @@ function logRows(ss) {
 
 const hhmm = d => Utilities.formatDate(new Date(d), TZ, 'HH:mm');
 
-// 日期欄統一成 yyyy-MM-dd 文字（就算試算表把它自動轉成日期格式，或手動補的列沒填日期也認得）
+// 這一列是哪一天（yyyy-MM-dd）：
+// 以「時間」欄（系統自動寫入的打卡時間）為準；手動補的列沒有時間，才看「日期」欄
+// 日期欄就算被試算表自動轉成日期格式也認得
 function cellDate(dateCell, timeCell) {
+  if (timeCell instanceof Date) return Utilities.formatDate(timeCell, TZ, 'yyyy-MM-dd');
   if (dateCell instanceof Date) return Utilities.formatDate(dateCell, TZ, 'yyyy-MM-dd');
   const s = String(dateCell || '').trim().replace(/\//g, '-');
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) {
     const [y, m, d] = s.split('-');
     return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
-  return timeCell instanceof Date ? Utilities.formatDate(timeCell, TZ, 'yyyy-MM-dd') : s;
+  return s;
 }
 
 /**
