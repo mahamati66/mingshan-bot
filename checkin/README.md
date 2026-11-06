@@ -110,7 +110,7 @@
 2. **LINE Developers** 打開這個 Messaging API channel：
    - Basic settings → 複製 **Channel secret**
    - Messaging API → Channel access token（long-lived）→ Issue，複製
-   - Webhook URL 填 `https://mingshan-bot-1.onrender.com/line/webhook`，按 Verify，打開 **Use webhook**
+   - Webhook URL 填 `https://mingshan-bot.onrender.com/line/webhook`，按 Verify，打開 **Use webhook**
 3. **Render** 環境變數再加三個：
 
 | 變數 | 內容 |
@@ -126,7 +126,7 @@
 ## 每月統計表
 
 ```
-https://mingshan-bot-1.onrender.com/line/report?key=<REPORT_KEY>
+https://mingshan-bot.onrender.com/line/report?key=<REPORT_KEY>
 ```
 
 - 顯示當月每位信眾打卡天數、最近一次打卡、全寺總人次（每位信眾天數的加總），可切換上個月／下個月
