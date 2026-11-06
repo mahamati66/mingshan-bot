@@ -281,6 +281,14 @@
       return showMessage('・', '暫時無法開啟', '請確認手機有連上網路，再碰一次貼紙 🙏');
     }
     if (!liff.isLoggedIn()) return liff.login({ redirectUri: location.href });
+
+    // LINE 會先把網址後面的部分（?spot=xiangji 或 /passbook）藏在 liff.state 裡，
+    // 再轉到真正的頁面。我們自己轉過去，確保拿得到，也不會重複打卡。
+    const liffState = new URLSearchParams(location.search).get('liff.state');
+    if (liffState && /^[/?]/.test(liffState)) {
+      return location.replace('/checkin' + liffState);
+    }
+
     spot = new URLSearchParams(location.search).get('spot') || '';
     send();
   })();
