@@ -381,15 +381,80 @@ async function lineReply(replyToken, text) {
   if (!response.ok) console.error('LINE 回覆失敗:', response.status, await response.text());
 }
 
-async function lineDisplayName(userId) {
+async function lineDisplayName(userId, source) {
+  // 好友用 profile；群組裡還沒加好友的人，改用群組成員資料
+  const urls = [`https://api.line.me/v2/bot/profile/${encodeURIComponent(userId)}`];
+  if (source && source.type === 'group') urls.push(`https://api.line.me/v2/bot/group/${encodeURIComponent(source.groupId)}/member/${encodeURIComponent(userId)}`);
+  if (source && source.type === 'room') urls.push(`https://api.line.me/v2/bot/room/${encodeURIComponent(source.roomId)}/member/${encodeURIComponent(userId)}`);
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } });
+      if (response.ok) return (await response.json()).displayName || '';
+    } catch (err) { /* 換下一個 */ }
+  }
+  return '';
+}
+
+// === LINE 一般訊息：像臉書留言一樣，由 AI 回覆 ===
+// 一對一聊天：每則文字都回；群組：只有 @官方帳號 或開頭是「小助手」才回，避免干擾大家聊天
+// 不想讓 AI 回覆時，在 Render 加環境變數 LINE_AI_REPLY=off
+const LINE_AI_REPLY = process.env.LINE_AI_REPLY !== 'off';
+const LINE_CALL_WORDS = ['小助手'];
+
+function lineAiQuestion(event) {
+  const message = event.message;
+  let text = message.text || '';
+  const source = event.source || {};
+  if (source.type === 'user') return text.trim();
+
+  // 群組／多人聊天：拿掉 @官方帳號 那段，剩下的才是問題
+  const self = message.mention && (message.mention.mentionees || []).find(m => m.isSelf);
+  if (self) {
+    text = text.slice(0, self.index) + text.slice(self.index + self.length);
+    return text.trim() || '你好';
+  }
+  const call = LINE_CALL_WORDS.find(w => text.trim().startsWith(w));
+  if (call) return text.trim().slice(call.length).replace(/^[\s,，:：]+/, '') || '你好';
+  return null;  // 群組裡的一般聊天，不回
+}
+
+async function generateLineReply(question, name) {
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+  const upcomingEvents = Math.random() < INVITE_RATE ? getUpcomingEvents(today) : '';
+  const eventsContext = upcomingEvents
+    ? `\n以下是明善寺即將到來的活動，若跟對方的話有關，可以自然、簡短地提一場（只能用這份清單，不要編造活動或日期）：\n${upcomingEvents}\n`
+    : '';
   try {
-    const response = await fetch(`https://api.line.me/v2/bot/profile/${encodeURIComponent(userId)}`, {
-      headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: `你是竹山明善寺 LINE 官方帳號的小助手，用溫暖、像朋友聊天的語氣回覆信眾的訊息（繁體中文）。
+- 長度跟訊息份量相稱：問候、佛號、感恩這類短訊息，回 1～2 句、40 字以內；有心事或提問，回 2～4 句、120 字以內。
+- 不說教、不灌雞湯、不長篇講經；需要時用一句生活化的話帶到佛法。
+- 表情符號最多一個 🙏。
+- 不知道的事（法會時間、報名細節、個人狀況）不要猜，請對方來電 049-2642840 或到寺裡詢問。
+- 地址：南投縣竹山鎮竹山路27號，電話：049-2642840。
+- 想記錄來寺裡的天數，可以提醒傳「打卡」；想看自己的紀錄，傳「存摺」。
+- 12/20 阿彌陀佛聖誕暨明善寺落成50週年慶需管控人數，僅開放已報名者：不要主動提及或邀請；若對方問起，請告知需事先報名並來電 049-2642840。
+今天日期：${today}（台灣時間）。${eventsContext}
+${name ? `對方的 LINE 名稱：${name}\n` : ''}對方傳來："${question}"`,
+        }],
+      }),
     });
-    if (!response.ok) return '';
-    return (await response.json()).displayName || '';
+    const data = await response.json();
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      console.error('Claude API 回傳異常（LINE）:', JSON.stringify(data));
+      return '阿彌陀佛，感恩您的訊息 🙏 有任何問題，也歡迎來電 049-2642840';
+    }
+    return data.content[0].text.trim();
   } catch (err) {
-    return '';
+    console.error('Claude API 錯誤（LINE）:', err);
+    return '阿彌陀佛，感恩您的訊息 🙏 有任何問題，也歡迎來電 049-2642840';
   }
 }
 
@@ -399,7 +464,15 @@ async function handleLineText(event) {
   if (!userId) return;
   const isCheckin = CHECKIN_WORDS.includes(text);
   const isPassbook = PASSBOOK_WORDS.includes(text);
-  if (!isCheckin && !isPassbook) return;  // 其他訊息交給官方帳號原本的自動回應
+  if (!isCheckin && !isPassbook) {
+    if (!LINE_AI_REPLY || !CLAUDE_API_KEY) return;  // 交給官方帳號原本的自動回應
+    const question = lineAiQuestion(event);
+    if (!question) return;
+    const name = await lineDisplayName(userId, event.source);
+    const reply = await generateLineReply(question.slice(0, 500), name);
+    console.log('LINE 訊息：', question.slice(0, 60), '→', reply.slice(0, 60));
+    return lineReply(event.replyToken, reply);
+  }
 
   if (!CHECKIN_SCRIPT_URL || !CHECKIN_SECRET) {
     console.error('信眾打卡尚未設定：請設定 CHECKIN_SCRIPT_URL、CHECKIN_SECRET');
@@ -407,7 +480,7 @@ async function handleLineText(event) {
   }
 
   if (isCheckin) {
-    const name = await lineDisplayName(userId);
+    const name = await lineDisplayName(userId, event.source);
     const r = await callCheckinScript({ action: 'devoteeCheckin', userId, name });
     if (!r.ok) throw new Error(JSON.stringify(r));
     const numbers = `累計 ${r.totalDays} 天，連續 ${r.streak} 天`;
