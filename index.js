@@ -475,10 +475,16 @@ ${name ? `對方的 LINE 名稱：${name}\n` : ''}對方傳來："${question}"`,
   }
 }
 
+// 群組安靜模式：福慧存摺正式上線前，機器人在群組裡一律不說話（打卡、存摺、AI 都不回）
+// 上線時在 Render 加環境變數 LINE_GROUP_REPLY=on，存檔後就會開始在群組回應
+const LINE_GROUP_REPLY = process.env.LINE_GROUP_REPLY === 'on';
+
 async function handleLineText(event) {
   const text = (event.message.text || '').trim();
   const userId = event.source && event.source.userId;
   if (!userId) return;
+  const fromGroup = event.source.type === 'group' || event.source.type === 'room';
+  if (fromGroup && !LINE_GROUP_REPLY) return;  // 群組安靜中
   const isCheckin = CHECKIN_WORDS.includes(text);
   const isPassbook = PASSBOOK_WORDS.includes(text);
   if (!isCheckin && !isPassbook) {
