@@ -372,11 +372,14 @@ function validLineSignature(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-async function lineReply(replyToken, text) {
+// 回覆：可以傳一段文字，或一個陣列（文字與按鈕訊息混合，最多 5 則）
+async function lineReply(replyToken, content) {
+  const messages = (Array.isArray(content) ? content : [content])
+    .map(m => (typeof m === 'string' ? { type: 'text', text: m } : m));
   const response = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
-    body: JSON.stringify({ replyToken, messages: [{ type: 'text', text }] }),
+    body: JSON.stringify({ replyToken, messages }),
   });
   if (!response.ok) console.error('LINE 回覆失敗:', response.status, await response.text());
 }
@@ -393,6 +396,20 @@ async function lineDisplayName(userId, source) {
     } catch (err) { /* 換下一個 */ }
   }
   return '';
+}
+
+// 「打開我的福慧存摺」按鈕：誰按就打開誰自己的存摺（LIFF），群組裡也不會把點數公開
+function passbookButton(text) {
+  if (!LIFF_ID) return null;
+  return {
+    type: 'template',
+    altText: '打開我的福慧存摺',
+    template: {
+      type: 'buttons',
+      text: text.slice(0, 160),
+      actions: [{ type: 'uri', label: '打開我的福慧存摺', uri: `https://liff.line.me/${LIFF_ID}/passbook` }],
+    },
+  };
 }
 
 // === LINE 一般訊息：像臉書留言一樣，由 AI 回覆 ===
@@ -489,18 +506,27 @@ async function handleLineText(event) {
       : `阿彌陀佛，今天是您本月第 ${r.monthDays} 天打卡，${numbers} 🙏`);
   }
 
+  // 群組裡：不把個人點數公開在群組，只給一個按鈕，按了打開自己的存摺
+  const inGroup = event.source.type === 'group' || event.source.type === 'room';
+  if (inGroup) {
+    const name = await lineDisplayName(userId, event.source);
+    const button = passbookButton(`阿彌陀佛${name ? `，${name}` : ''} 🙏\n點下方按鈕，打開您自己的福慧存摺（只有您自己看得到）`);
+    return lineReply(event.replyToken, button || '阿彌陀佛 🙏 想看自己的福慧存摺，請私訊官方帳號傳「存摺」');
+  }
+
   const r = await callCheckinScript({ action: 'devoteeStats', userId });
   if (!r.ok) throw new Error(JSON.stringify(r));
-  if (!r.totalDays) {
-    return lineReply(event.replyToken, '阿彌陀佛，您的福慧存摺還是新的 🙏\n傳「打卡」，就從今天開始記錄');
-  }
-  return lineReply(event.replyToken, [
-    '阿彌陀佛，這是您的福慧存摺 🙏',
-    `累計打卡：${r.totalDays} 天`,
-    `連續打卡：${r.streak} 天`,
-    `本月打卡：${r.monthDays} 天`,
-    r.checkedToday ? '今天已經打卡囉' : '今天還沒打卡，傳「打卡」就可以囉',
-  ].join('\n'));
+  const button = passbookButton('義工修福、修慧的點數和蓮花等級，請按下方按鈕查看');
+  const stats = !r.totalDays
+    ? '阿彌陀佛，您的打卡紀錄還是新的 🙏\n傳「打卡」，就從今天開始記錄'
+    : [
+      '阿彌陀佛，這是您的打卡紀錄 🙏',
+      `累計打卡：${r.totalDays} 天`,
+      `連續打卡：${r.streak} 天`,
+      `本月打卡：${r.monthDays} 天`,
+      r.checkedToday ? '今天已經打卡囉' : '今天還沒打卡，傳「打卡」就可以囉',
+    ].join('\n');
+  return lineReply(event.replyToken, button ? [stats, button] : stats);
 }
 
 app.post('/line/webhook', (req, res) => {
